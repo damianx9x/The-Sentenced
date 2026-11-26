@@ -25,7 +25,9 @@ mt.__index=function(o,k)
 end
 function CreateFrame(type,name,parent,template)
  if template=='InputBoxTemplate' and os.getenv('TS_TEST_NO_NATIVE')=='1' then error('template unavailable') end
- local f=setmetatable({scripts={},shown=true,frameType=type,name=name,parent=parent,template=template},mt); all[#all+1]=f; return f
+ local f=setmetatable({scripts={},shown=true,frameType=type,name=name,parent=parent,template=template},mt)
+ if type=='DropdownButton' then f.Text=setmetatable({},mt) end
+ all[#all+1]=f; return f
 end
 UIParent={}; Minimap=setmetatable({shown=true},mt); GameFontNormal=setmetatable({},mt); ChatFontNormal={}; UISpecialFrames={}; SlashCmdList={}
 function Minimap:GetWidth() return 140 end
@@ -632,6 +634,20 @@ activeButton('SPRAWDŹ PRZED WYSŁANIEM').scripts.OnClick()
 assert(ns.TransferSync.code(true)=='','preview must not send or generate a request')
 activeButton('PRZEKAŻ BOTOWI').scripts.OnClick()
 assert(ns.TransferSync.code(true):find('|staff.post|calendar:',1,true),'confirmed request targets the selected channel')
+MenuUtil={}
+activeButton('WNIOSKI REKRUTACYJNE').scripts.OnClick()
+activeButton('NAPISZ NA DISCORDZIE').scripts.OnClick()
+local function visibleDropdowns()
+ local n=0
+ for _,f in ipairs(all) do if f.frameType=='DropdownButton' and f.shown then n=n+1 end end
+ return n
+end
+assert(visibleDropdowns()==1, 'native channel selector must be visible')
+activeButton('SPRAWDŹ PRZED WYSŁANIEM').scripts.OnClick()
+assert(visibleDropdowns()==1, 'redrawing the page must not leave an overlapping selector')
+activeButton('WNIOSKI REKRUTACYJNE').scripts.OnClick()
+assert(visibleDropdowns()==0, 'leaving the form must hide the selector')
+MenuUtil=nil
 GetGuildInfo=savedGuildInfo
 GetNormalizedRealmName=savedRealm
 GetServerTime=savedTime

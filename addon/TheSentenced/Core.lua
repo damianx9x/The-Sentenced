@@ -86,7 +86,11 @@ end
 -- Older clients keep the existing buttons rather than losing the form.
 local function nativeChoice(parent, labels, selected, choose, width)
   if not MenuUtil then return nil end
-  local ok,dropdown=pcall(CreateFrame,'DropdownButton',nil,parent,'WowStyle1DropdownTemplate')
+  local ok,dropdown=pcall(function()
+    return acquire('dropdown:native',function()
+      return CreateFrame('DropdownButton',nil,parent,'WowStyle1DropdownTemplate')
+    end,parent)
+  end)
   if not ok or not dropdown or type(dropdown.SetupMenu)~='function' then return nil end
   dropdown:SetWidth(width or 260)
   dropdown:SetDefaultText('Wybierz')
@@ -221,7 +225,7 @@ local function start()
   local title=font(hero,'Centrum gildii',24,gold); title:SetPoint('TOPLEFT',20,-13);if NS.Theme then NS.Theme.font(title,24,'title') end
   local desc=font(hero,guild and plain(guild) or 'Dołącz do gildii',13,muted)
   desc:SetPoint('TOPLEFT',21,-49);desc:SetWidth(490)
-  local alpha=font(hero,'ALFA  0.6.40',10,gold); alpha:SetPoint('TOPRIGHT',-102,-18)
+  local alpha=font(hero,'ALFA  0.6.42',10,gold); alpha:SetPoint('TOPRIGHT',-102,-18)
   ui.y=ui.y-86
   local shortcuts={{'RAJDY I WYPRAWY','WYDARZENIA'},{'LUDZIE I PROFESJE','RZEMIOSŁO'},{'POŁĄCZENIE DISCORD','DISCORD'}}
   for i,v in ipairs(shortcuts) do
@@ -465,6 +469,7 @@ local function staffPage()
   end,240)
   local bridge=NS.TransferSync
   local automatic,automaticStatus=bridge.localStaff()
+  local connected=automatic~=nil or bridge.localStaffAvailable()
   local manual=bridge.staffSnapshot()
   local data=manual or automatic
   local function request(operation,payload)
@@ -488,15 +493,19 @@ local function staffPage()
       addAction('USUŃ STARE ŻĄDANIE...',function() ui.discardStaffRequest=true;render() end,240)
     end
   end
-  if automatic then
-    text('Połączono z lokalnym synchronizatorem. Kolejka odświeża się po przeładowaniu gry.',12,gold,9)
+  if connected then
+    if automatic then
+      text('Połączono z lokalnym synchronizatorem. Kolejka odświeża się po przeładowaniu gry.',12,gold,9)
+    else
+      text('Dane wymagają odświeżenia. Wybierz przycisk poniżej, aby wczytać aktualną kolejkę.',12,gold,9)
+    end
     addAction(awaiting and 'ZAPISZ I PRZEŁADUJ' or 'ODŚWIEŻ PO PRZEŁADOWANIU',function() ReloadUI() end,275)
   elseif not ui.staffPostMode then
     addAction('POBIERZ WNIOSKI',function() request('staff.review.list',tostring(reviewPage)) end,205)
   end
   if awaiting then text('Synchronizator przetwarza operację. Odczekaj około 20 sekund i wybierz przycisk odświeżenia.',12,gold,9) end
   if staffStatus or automaticStatus then text(staffStatus or automaticStatus,12,gold) end
-  if automatic then
+  if connected then
     addAction(ui.staffManual and 'UKRYJ KODY RĘCZNE' or 'POKAŻ KODY RĘCZNE',function() ui.staffManual=not ui.staffManual; render() end,240)
   end
   if ui.staffPostMode then
@@ -531,7 +540,7 @@ local function staffPage()
       end,270)
     end
   end
-  if not automatic or ui.staffManual then
+  if not connected or ui.staffManual then
     transferFields('',function(code)
       local ok,message=bridge.accept(code,true)
       staffStatus=message
@@ -2483,7 +2492,7 @@ local function archivePage()
 end
 local showSetup
 local function help()
-  section('INFORMACJE  /  POMOC','Jak to działa?','Wersja 0.6.40-alfa • WoW Forever • interfejs 16001')
+  section('INFORMACJE  /  POMOC','Jak to działa?','Wersja 0.6.42-alfa • WoW Forever • interfejs 16001')
   addAction('DIAGNOSTYKA — KOPIUJ RAPORT',function() if NS.Diagnostics then NS.Diagnostics.show() end end,300)
   addAction('JĘZYK: POLSKI',function()
     NS.Language.set(NS.Language.language()=='pl' and 'en' or 'pl'); render()

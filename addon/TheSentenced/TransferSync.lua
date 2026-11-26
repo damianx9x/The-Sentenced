@@ -86,6 +86,16 @@ local function localWire(code)
  if p[2]=='P' and #p==6 and #p[6]>=17 and #p[6]<=20 and p[6]:match('^%d+$') then return {id=p[3],posted=p[6]} end
  if p[2]=='K' then return {id=p[3],queue=readStaff(p,character,stamp)} end
 end
+function T.localStaffAvailable()
+ if not TheSentencedDB or TheSentencedDB.autoDiscord==false or
+    (NS.GuildAccess and not NS.GuildAccess.isMember()) then return false end
+ local value=NS.CompanionSnapshot and NS.CompanionSnapshot.staff
+ if type(value)~='table' or type(value.queue)~='string' or #value.queue>16384 then return false end
+ local parts=split(value.queue,'|')
+ if parts[1]~='TSB1' or parts[2]~='K' or #parts<8 or
+    type(parts[3])~='string' or #parts[3]~=16 or parts[3]:find('[^%da-f]') then return false end
+ return unhex(parts[5])==T.character()
+end
 function T.localStaff()
  if not TheSentencedDB or TheSentencedDB.autoDiscord==false or
     (NS.GuildAccess and not NS.GuildAccess.isMember()) then return end

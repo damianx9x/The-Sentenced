@@ -1,4 +1,4 @@
-# The Sentenced Guild Hall 0.6.40-alpha
+# The Sentenced Guild Hall 0.6.42-alpha
 
 Dodatek dla klienta WoW Forever (interfejs 16001). Otwórz panel komendą `/ts`, a grę komendą `/tssnake`. `/tssnake auto` włącza lub wyłącza automatyczne otwarcie podczas dłuższego lotu.
 

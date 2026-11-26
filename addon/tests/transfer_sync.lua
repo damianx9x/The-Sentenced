@@ -45,6 +45,15 @@ GetServerTime=function() return 1795000000 end
 TheSentencedDB.autoDiscord=true
 ns.CompanionSnapshot.staff={queue=staffReply,ack=''}
 assert(T.localStaff().applications[1].name=='Łotr')
+assert(T.localStaffAvailable())
+GetServerTime=function() return 1795000601 end
+assert(not T.localStaff() and T.localStaffAvailable(), 'stale snapshot keeps automatic connection without exposing stale applications')
+local storedQueue=ns.CompanionSnapshot.staff.queue
+ns.CompanionSnapshot.staff.queue=storedQueue:gsub(hex('Icex Jenkins-Realm'),hex('Other-Realm'))
+assert(not T.localStaffAvailable(), 'automatic indicator remains bound to the paired character')
+ns.CompanionSnapshot.staff.queue=storedQueue
+GetServerTime=function() return 1795000000 end
+
 assert(T.queueLocalDecision('1:approve:123456789012345678:3'))
 local decisionID=T.waitingForStaffBridge();assert(decisionID and #decisionID==16)
 assert(not T.queueLocalDecision('1:reject:123456789012345678:3'))
