@@ -1,0 +1,27 @@
+{
+  "name": "sentencedbot",
+  "version": "3.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/run.cjs",
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js",
+    "setup": "node setup-server.js",
+    "upgrade": "node upgrade-v2.js",
+    "layout": "node layout-v4.js",
+    "release05": "node release-v0.5.js",
+    "repair05": "node repair-v0.5.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "cheerio": "^1.2.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2",
+    "luxon": "^3.7.2"
+  }
+}
