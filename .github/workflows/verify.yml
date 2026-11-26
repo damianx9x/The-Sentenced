@@ -1,0 +1,38 @@
+name: Verify The Sentenced
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Bot, Discord and bridge tests
+        run: |
+          npm ci --prefix runtime --no-audit --no-fund
+          NODE_PATH="$PWD/runtime/node_modules" node --test tests/*.test.cjs
+          python -m unittest discover -s tests -p 'test_*.py'
+      - name: Addon tests and release archive
+        working-directory: addon
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends lua5.1 luajit liblua5.4-0
+          python -m pip install fonttools
+          for test in tests/*.lua; do luajit "$test"; done
+          for source in TheSentenced/*.lua; do luac5.1 -p "$source"; done
+          python tests/verify_assets.py
+          python tests/verify_catalog.py
+          python build.py "$RUNNER_TEMP/TheSentenced.zip"
+          python -m zipfile -t "$RUNNER_TEMP/TheSentenced.zip"

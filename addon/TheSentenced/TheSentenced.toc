@@ -2,7 +2,7 @@
 ## Title: |cffffba5cTHE SENTENCED|r |cff8d99aaGuild Hall|r
 ## Notes: Centrum gildii The Sentenced dla WoW Forever.
 ## Author: The Sentenced
-## Version: 0.6.42-alpha
+## Version: 0.6.43-alpha
 ## SavedVariables: TheSentencedGuildDB
 ## SavedVariablesPerCharacter: TheSentencedDB
 Theme.lua
@@ -32,7 +32,6 @@ CompanionSnapshot.lua
 GuildAccess.lua
 GuildLinks.lua
 TransferSync.lua
-GuildWelcome.lua
 Core.lua
 Gather.lua
 MapPins.lua

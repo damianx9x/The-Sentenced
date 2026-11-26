@@ -78,7 +78,9 @@ local function localWire(code)
  if type(code)~='string' or #code>16384 then return end
  local p=split(code,'|')
  if p[1]~='TSB1' then return end
- if p[2]=='E' and #p==4 then return {id=p[3],error=unhex(p[4])} end
+ if p[2]=='E' and #p==4 then
+  local message=unhex(p[4]);if message and message~='' then return {id=p[3],error=message} end
+ end
  local stamp=tonumber(p[4])
  local character=unhex(p[5])
  local now=clock()
@@ -94,7 +96,8 @@ function T.localStaffAvailable()
  local parts=split(value.queue,'|')
  if parts[1]~='TSB1' or parts[2]~='K' or #parts<8 or
     type(parts[3])~='string' or #parts[3]~=16 or parts[3]:find('[^%da-f]') then return false end
- return unhex(parts[5])==T.character()
+ local character=T.character()
+ return character~=nil and unhex(parts[5])==character
 end
 function T.localStaff()
  if not TheSentencedDB or TheSentencedDB.autoDiscord==false or
@@ -103,12 +106,14 @@ function T.localStaff()
  if type(value)~='table' then return end
  local snapshot=localWire(value.queue)
  if not snapshot or not snapshot.queue then return end
- local status,id=T.staffOutboxStatus()
+ local status,id,operation=T.staffOutboxStatus()
  local acknowledgement=localWire(value.ack)
- if id and acknowledgement and acknowledgement.id==id and
-    (status=='waiting' or acknowledgement.queue and acknowledgement.queue.decision~='-') then
+ local outcome=acknowledgement and acknowledgement.queue and acknowledgement.queue.decision
+ local confirmedDecision=operation=='staff.review.decide' and (outcome=='APPROVED' or outcome=='REJECTED')
+ local confirmedPost=operation=='staff.post' and acknowledgement and acknowledgement.posted
+ local currentError=status=='waiting' and acknowledgement and acknowledgement.error
+ if id and acknowledgement and acknowledgement.id==id and (confirmedDecision or confirmedPost or currentError) then
   TheSentencedDB.staffReviewOutboxV1=nil
-  local outcome=acknowledgement.queue and acknowledgement.queue.decision
   staffTransfer.localStatus=outcome=='APPROVED' and 'Bot potwierdził przyjęcie do gildii.'
     or outcome=='REJECTED' and 'Bot potwierdził odrzucenie wniosku.'
     or acknowledgement.posted and 'Bot opublikował wiadomość na Discordzie.'
@@ -119,11 +124,11 @@ end
 function T.staffOutboxStatus()
  local outbox=TheSentencedDB and TheSentencedDB.staffReviewOutboxV1
  if type(outbox)~='string' then return end
- local stamp,id=outbox:match('^TSA1|(%d+)|TSB1|Q|(%x+)|')
- if not stamp or #stamp~=10 or #id~=16 then return 'invalid' end
+ local stamp,id,operation=outbox:match('^TSA1|(%d+)|TSB1|Q|([%da-f]+)|%x+|([%a.]+)|')
+ if not stamp or #stamp~=10 or #id~=16 or (operation~='staff.review.decide' and operation~='staff.post') then return 'invalid' end
  local age=clock()-tonumber(stamp)
- if age< -60 or age>900 then return 'expired',id end
- return 'waiting',id
+ if age< -60 or age>900 then return 'expired',id,operation end
+ return 'waiting',id,operation
 end
 function T.waitingForStaffBridge()
  local status,id=T.staffOutboxStatus()

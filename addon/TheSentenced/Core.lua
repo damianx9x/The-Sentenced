@@ -1,4 +1,6 @@
 local addonName, NS = ...
+local metadata=C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
+local addonVersion=metadata and metadata(addonName,'Version')
 local app = CreateFrame('Frame')
 local function diag(key,value) if NS.Diagnostics then pcall(NS.Diagnostics.mark,key,value) end end
 local db
@@ -14,15 +16,16 @@ local profileView='OVERVIEW'
 local lootQuery = ''
 local lootByPlayer = false
 local groups = {
-  {id='HOME', label='START', pages={'START'}},
-  {id='COMMUNITY', label='GILDIA I OGŁOSZENIA', pages={'GILDIA','RZEMIOSŁO','ZASOBY','TABLICA','PROFIL','DISCORD','SIEĆ','HISTORIA'}},
+  {id='HOME', label='START', pages={'START'}, standalone=true},
+  {id='COMMUNITY', label='GILDIA I OGŁOSZENIA', pages={'GILDIA','RZEMIOSŁO','ZASOBY','TABLICA','PROFIL','SIEĆ','HISTORIA'}},
   {id='ADVENTURES', label='WYPRAWY I ZAPISY', pages={'WYDARZENIA','RAIDY','PRZYGOTOWANIE'}},
   {id='REWARDS', label='PRZEDMIOTY I ŁUPY', pages={'ŁUPY'}},
   {id='WORLD', label='MAPA I ODKRYCIA', pages={'MAPA'}},
+  {id='DISCORD', label='DISCORD', pages={'DISCORD'}, standalone=true},
   {id='PERSONAL', label='USTAWIENIA', pages={'USTAWIENIA','POSTAĆ','POMOC'}},
-  {id='STAFF', label='KADRA', pages={'KADRA'}},
+  {id='STAFF', label='KADRA', pages={'KADRA'}, standalone=true},
 }
-local groupIcons={HOME='INV_Misc_GroupLooking',COMMUNITY='INV_BannerPVP_01',ADVENTURES='INV_Misc_Map_01',REWARDS='INV_Misc_Coin_01',WORLD='INV_Misc_Map_01',PERSONAL='INV_Misc_EngGizmos_17',STAFF='INV_Misc_Book_11'}
+local groupIcons={HOME='INV_Misc_GroupLooking',COMMUNITY='INV_BannerPVP_01',ADVENTURES='INV_Misc_Map_01',REWARDS='INV_Misc_Coin_01',WORLD='INV_Misc_Map_01',DISCORD='INV_Misc_Note_01',PERSONAL='INV_Misc_EngGizmos_17',STAFF='INV_Misc_Book_11'}
 local groupByPage={}
 for _,group in ipairs(groups) do for _,name in ipairs(group.pages) do groupByPage[name]=group.id end end
 local palette = NS.Theme and NS.Theme.palette or {}
@@ -115,6 +118,11 @@ local function edit(parent, w, h, initial, placeholder)
     if ok and native then native.tsNativeInput=true; return native end
     local fallback=CreateFrame('EditBox',nil,parent,'BackdropTemplate'); fallback.tsNativeInput=false; return fallback
   end,parent)
+  -- SetText also fires handlers from a recycled field. Clear the old form's
+  -- handlers before restoring the new field so drafts cannot overwrite one another.
+  box:SetScript('OnTextChanged',nil)
+  box:SetScript('OnEditFocusGained',nil); box:SetScript('OnEditFocusLost',nil)
+  box:ClearFocus()
   box:SetSize(w,h); box:SetMultiLine(false); box:SetScript('OnEnterPressed',nil); box:SetAutoFocus(false); box:SetFontObject(ChatFontNormal); box:SetFont('Interface\\AddOns\\TheSentenced\\Fonts\\DejaVuSans.ttf',12,'')
   box:SetTextInsets(9,9,3,3); box:SetMaxLetters(100)
   if not box.tsNativeInput and box.SetBackdrop then
@@ -156,7 +164,14 @@ local function bar(title, subtitle, color, click)
   local d=font(f,subtitle or '',10,muted); d:SetPoint('TOPLEFT',13,-27); d:SetWidth(590)
   ui.y=ui.y-56; return f
 end
-local function finish() recycle=false; ui.content:SetHeight(math.max(1,-ui.y+15)); ui.scrollChild:SetHeight(math.max(480,-ui.y+15)); ui.scroll:SetVerticalScroll(0) end
+local function finish(offset)
+  recycle=false
+  ui.content:SetHeight(math.max(1,-ui.y+15))
+  ui.scrollChild:SetHeight(math.max(480,-ui.y+15))
+  if ui.scroll.UpdateScrollChildRect then ui.scroll:UpdateScrollChildRect() end
+  local maximum=ui.scroll:GetVerticalScrollRange() or 0
+  ui.scroll:SetVerticalScroll(math.max(0,math.min(offset or 0,maximum)))
+end
 local function roster()
   local result={}
   if not IsInGuild or not IsInGuild() or not GetNumGuildMembers or not GetGuildRosterInfo then return result end
@@ -196,6 +211,33 @@ local function canManageGuildEntry(actor,author)
 end
 
 local guildKey,member,me
+local function discordProjection()
+  if NS.GuildAccess and not NS.GuildAccess.isMember() then
+    return nil,'Dostęp dla członków The Sentenced',muted
+  end
+  if db.autoDiscord == false then return nil,'Lokalny odczyt wyłączony',muted end
+  local snapshot=NS.GuildAccess and NS.GuildAccess.snapshot()
+  if not snapshot then return nil,'Brak danych z lokalnego synchronizatora',muted end
+  local now=GetServerTime and GetServerTime() or 0
+  if now-snapshot.generatedAt>1200 then return snapshot,'Lokalny odczyt wymaga odświeżenia',red end
+  return snapshot,'Lokalny odczyt gotowy',gold
+end
+
+local function homeCard(index,title,detail,icon,destination)
+  local card=frame('Button',ui.content)
+  card:SetPoint('TOPLEFT',(index-1)*210,ui.y)
+  card:SetSize(205,72)
+  solid(card,.13,.14,.17,1)
+  card:SetHighlightTexture('Interface\\QuestFrame\\UI-QuestTitleHighlight')
+  local art=texture(card,'ARTWORK')
+  art:SetSize(22,22); art:SetPoint('TOPLEFT',11,-11); art:SetTexture('Interface\\Icons\\'..icon)
+  local heading=font(card,title,12,gold)
+  heading:SetPoint('TOPLEFT',40,-15); heading:SetWidth(154)
+  local desc=font(card,detail,10,white)
+  desc:SetPoint('TOPLEFT',12,-43); desc:SetWidth(178)
+  card:SetScript('OnClick',function() page=destination; render() end)
+end
+
 local function start()
   local members=roster(); local online=0
   for _,m in ipairs(members) do if m.online then online=online+1 end end
@@ -225,14 +267,14 @@ local function start()
   local title=font(hero,'Centrum gildii',24,gold); title:SetPoint('TOPLEFT',20,-13);if NS.Theme then NS.Theme.font(title,24,'title') end
   local desc=font(hero,guild and plain(guild) or 'Dołącz do gildii',13,muted)
   desc:SetPoint('TOPLEFT',21,-49);desc:SetWidth(490)
-  local alpha=font(hero,'ALFA  0.6.42',10,gold); alpha:SetPoint('TOPRIGHT',-102,-18)
-  ui.y=ui.y-86
-  local shortcuts={{'RAJDY I WYPRAWY','WYDARZENIA'},{'LUDZIE I PROFESJE','RZEMIOSŁO'},{'POŁĄCZENIE DISCORD','DISCORD'}}
-  for i,v in ipairs(shortcuts) do
-    local b=button(ui.content,v[1],200,32,function() page=v[2]; render() end,true)
-    b:SetPoint('TOPLEFT',4+(i-1)*207,ui.y)
+  if addonVersion then
+    local version=font(hero,addonVersion,10,gold); version:SetPoint('TOPRIGHT',-102,-18)
   end
-  ui.y=ui.y-43
+  ui.y=ui.y-86
+  homeCard(1,'Zaplanuj wyprawę','Terminy i zapisy na role','INV_Misc_Map_01','WYDARZENIA')
+  homeCard(2,'Znajdź rzemieślnika','Katalog profesji gildii','INV_Misc_EngGizmos_17','RZEMIOSŁO')
+  homeCard(3,'Sprawdź Discord','Wydarzenia i połączenie','INV_Misc_Note_01','DISCORD')
+  ui.y=ui.y-83
   local stats={
     {tostring(online)..' / '..#members,'GILDIA ONLINE'},
     {tostring(eventCount),'WYDARZENIA ADDONA'},
@@ -265,20 +307,22 @@ local function start()
   end
   local shownEvent=nextEvent or latestEvent
   homeBar(nextEvent and 'NAJBLIŻSZE WYDARZENIE' or 'OSTATNIO DODANE WYDARZENIE', shownEvent and preview(plain(shownEvent.title)..'  •  '..plain(shownEvent.when),95) or 'Nie odebrano jeszcze wydarzeń gildii.',red,'WYDARZENIA')
-  local snapshot=NS.GuildAccess and NS.GuildAccess.snapshot()
+  local snapshot,readStatus,readColor=discordProjection()
   local now=GetServerTime and GetServerTime() or 0
+  local nearest
   if type(snapshot)=='table' and snapshot.schema==1 and type(snapshot.generatedAt)=='number' and snapshot.generatedAt>0 then
-    local nearest
     for _,list in ipairs({snapshot.raids or {},snapshot.expeditions or {}}) do
       if type(list)=='table' then for _,item in ipairs(list) do
         if type(item)=='table' and type(item.title)=='string' and type(item.when)=='number' and item.when>=now and (not nearest or item.when<nearest.when) then nearest=item end
       end end
     end
-    if nearest then
-      local stamp=date and date('%Y-%m-%d %H:%M',nearest.when) or tostring(nearest.when)
-      local stale=type(now)=='number' and now>0 and (now-snapshot.generatedAt>1200 or snapshot.generatedAt>now+300)
-      homeBar('NAJBLIŻSZE Z DISCORDA',preview(plain(nearest.title)..'  •  '..stamp..(stale and '  •  dane mogą być nieaktualne' or ''),95),gold,'DISCORD')
-    end
+  end
+  if nearest then
+    local stamp=date('%d.%m %H:%M',nearest.when)
+    local stale=now-snapshot.generatedAt>1200
+    homeBar('NAJBLIŻSZE Z DISCORDA',preview(plain(nearest.title)..'  •  '..stamp..(stale and ('  •  '..tr('Dane mogą być nieaktualne')) or ''),95),readColor,'DISCORD')
+  else
+    homeBar('POŁĄCZENIE Z DISCORDEM',readStatus,readColor,'DISCORD')
   end
   local latestPost=boardCount>0 and board.items[1] or nil
   local latestPostText=latestPost and latestPost.text
@@ -398,56 +442,90 @@ local function transferFields(initial,onResult,staff)
 end
 
 local transferDraft,pairDraft='',''
-local manualDiscordOpen=false
+local manualDiscordOpen
 local function discordPage()
-  section('THE SENTENCED / DISCORD','Połączenie z Discordem','Wydarzenia i zapisy gildii w jednym miejscu.')
+  section('THE SENTENCED / DISCORD','Połączenie z Discordem','Sprawdź wydarzenia i zarządzaj swoimi zapisami.')
   if NS.GuildAccess and not NS.GuildAccess.isMember() then
     text('Połączenie jest dostępne dla aktywnych członków The Sentenced w WoW Forever.',12,muted)
     return
   end
-  local auto = NS.GuildAccess and NS.GuildAccess.snapshot()
-  local status = db.autoDiscord == false and 'Wyłączony' or auto and ('Odczyt: '..date('%d.%m %H:%M',auto.generatedAt)) or 'Czeka na program towarzyszący'
-  text('Automatyczne dane z Discorda: '..status,12,gold)
-  if auto then
-    for _,raid in ipairs(auto.raids or {}) do
-      if type(raid.title)=='string' and type(raid.when)=='number' then
-        bar(plain(raid.title),date('%d.%m %H:%M',raid.when)..'  •  Wydarzenie Discord',gold)
+  local auto,status,statusColor=discordProjection()
+  local detail=auto and (tr('Ostatni odczyt')..'  •  '..date('%d.%m %H:%M',auto.generatedAt))
+    or tr('Odczyt zdarzeń wymaga synchronizatora na tym komputerze.')
+  bar(status,detail,statusColor)
+  if db.autoDiscord==false then
+    addAction('WŁĄCZ LOKALNY ODCZYT',function() db.autoDiscord=true; render() end,245)
+  elseif ReloadUI then
+    addAction('WCZYTAJ DANE Z KOMPUTERA',function() ReloadUI() end,265)
+    text('Przycisk przeładuje interfejs WoW, aby wczytać dane zapisane przez synchronizator.',11,muted,13)
+  end
+
+  local data=NS.TransferSync.snapshot()
+  if manualDiscordOpen==nil then manualDiscordOpen=NS.TransferSync.code()~='' end
+  addAction(manualDiscordOpen and 'UKRYJ PAROWANIE I ZAPISY' or 'PAROWANIE I ZAPISY NA RAJD',function()
+    manualDiscordOpen=not manualDiscordOpen
+    render()
+  end,292)
+
+  if not manualDiscordOpen then
+    section(nil,'Wydarzenia z Discorda')
+    local shown=0
+    if auto then
+      for _,raid in ipairs(auto.raids or {}) do
+        if type(raid.title)=='string' and type(raid.when)=='number' then
+          bar(plain(raid.title),date('%d.%m %H:%M',raid.when)..'  •  '..tr('Wydarzenie Discord'),gold)
+          shown=shown+1
+        end
+      end
+      for _,run in ipairs(auto.expeditions or {}) do
+        if type(run.title)=='string' and type(run.when)=='number' then
+          bar(plain(run.title),date('%d.%m %H:%M',run.when)..'  •  '..tr('Wyprawa Discord'),gold)
+          shown=shown+1
+        end
       end
     end
-    for _,run in ipairs(auto.expeditions or {}) do
-      if type(run.title)=='string' and type(run.when)=='number' then
-        bar(plain(run.title),date('%d.%m %H:%M',run.when)..'  •  Wyprawa Discord',gold)
-      end
-    end
+    if shown==0 then text(auto and 'Ostatni odczyt nie zawiera nadchodzących wydarzeń.' or 'Wczytaj dane lub otwórz parowanie i zapisy, aby pobrać listę z bota.',12,muted) end
+    return
   end
-  if auto then
-    addAction(manualDiscordOpen and 'UKRYJ KODY RĘCZNE' or 'PAROWANIE I ZAPISY RĘCZNE',function()
-      manualDiscordOpen=not manualDiscordOpen
-      render()
-    end,285)
-    if not manualDiscordOpen then return end
+  section(nil,'Parowanie i zapisy','Ta część służy do zapisów na Discordzie przy użyciu kodu wymiany.')
+  if data then
+    text(tr('Sparowana postać')..'  •  '..plain(data.label)..'  •  '..date('%d.%m %H:%M',data.generatedAt),12,gold)
+    addAction(ui.discordPairOpen and 'UKRYJ KOD PAROWANIA' or 'SPARUJ PONOWNIE',function()
+      ui.discordPairOpen=not ui.discordPairOpen; render()
+    end,220)
   end
-  text('Przy pierwszym połączeniu użyj na Discordzie /bot → Addon → Połącz addon.',12,white)
-  local pair=edit(ui.content,310,31,pairDraft,'Jednorazowy kod parowania (18 znaków)'); pair:SetPoint('TOPLEFT',4,ui.y);pair:SetMaxLetters(18)
   local function prepare(operation,payload)
-    local code,err=NS.TransferSync.request(operation,payload); if not code then log(err);return end
+    local code,err=NS.TransferSync.request(operation,payload)
+    ui.discordTransferStatus=err
+    if not code then render();return end
     transferDraft='';render()
   end
-  local connect=button(ui.content,'POŁĄCZ',125,31,function()pairDraft=pair:GetText();prepare('pair',pairDraft)end);connect:SetPoint('LEFT',pair,'RIGHT',10,0);ui.y=ui.y-42
+  if not data or ui.discordPairOpen then
+    text('Przy pierwszym połączeniu użyj na Discordzie /bot → Addon → Połącz addon.',12,white)
+    local pair=edit(ui.content,310,31,pairDraft,'Jednorazowy kod parowania (18 znaków)')
+    pair:SetPoint('TOPLEFT',4,ui.y);pair:SetMaxLetters(18)
+    local updateHint=pair:GetScript('OnTextChanged')
+    pair:SetScript('OnTextChanged',function(box) updateHint(box);pairDraft=box:GetText() end)
+    local connect=button(ui.content,'POŁĄCZ',125,31,function() pairDraft=pair:GetText();prepare('pair',pairDraft) end)
+    connect:SetPoint('LEFT',pair,'RIGHT',10,0);ui.y=ui.y-42
+  end
   addAction('POBIERZ AKTUALNE DANE',function()prepare('snapshot','')end,260)
+  if ui.discordTransferStatus then text(ui.discordTransferStatus,12,gold) end
   transferFields(transferDraft,function(code)
     local ok,message=NS.TransferSync.accept(code)
-    log(message)
+    ui.discordTransferStatus=message
     transferDraft=ok and '' or code
-    if ok then render() end
+    if ok then ui.discordPairOpen=false;pairDraft='' end
+    render()
   end)
-  local data=NS.TransferSync.snapshot()
   if data then
-    text('POŁĄCZONO: '..plain(data.label)..' • '..date('%d.%m %H:%M',data.generatedAt),11,gold)
     text('Zapisy z Discorda. Wybór przygotuje żądanie; zmiana nastąpi po przesłaniu kodu botowi. Zamknięte zapisy są tylko do odczytu.',11,muted)
     for _,raid in ipairs(data.raids)do
       local r=raid
-      local f=bar(preview(r.title,34),date('%d.%m %H:%M',r.when)..' • '..(r.ownStatus~='' and r.ownStatus or 'brak zapisu')..' • '..r.status,gold)
+      local attendance=({YES='Będę',MAYBE='Może',NO='Nie będę'})[r.ownStatus] or 'Brak zapisu'
+      local subtitle=date('%d.%m %H:%M',r.when)..'  •  '..tr(attendance)
+      if r.status=='CLOSED' then subtitle=subtitle..'  •  '..tr('Zapisy zamknięte') end
+      local f=bar(preview(r.title,34),subtitle,gold)
       if r.status=='ACTIVE' then
         for i,v in ipairs({{'TAK','YES'},{'MOŻE','MAYBE'},{'NIE','NO'}})do
           local status=v[2];local b=button(f,v[1],75,27,function()prepare('raid.signup',r.id..':'..status..':'..r.revision)end);b:SetPoint('RIGHT',-8-(3-i)*80,0)
@@ -455,10 +533,6 @@ local function discordPage()
       end
     end
   end
-  text('POWITANIA W GRZE',10,gold)
-  local pending=NS.GuildWelcome and NS.GuildWelcome.pending()or {}
-  text('Kolejka właściciela: '..#pending..'. Pobierana lokalnym mostem po /reload. Enter wysyła wiadomość w Twoim imieniu na /g.',11,muted)
-  if #pending>0 then addAction('PRZYGOTUJ POWITANIE /g',function()local _,message=NS.GuildWelcome.prepare();log(message)end,300)end
 end
 local staffApplication,staffDecision,staffStatus
 local function staffPage()
@@ -471,7 +545,9 @@ local function staffPage()
   local automatic,automaticStatus=bridge.localStaff()
   local connected=automatic~=nil or bridge.localStaffAvailable()
   local manual=bridge.staffSnapshot()
-  local data=manual or automatic
+  local useLocal=connected and not ui.staffManual
+  local data=useLocal and automatic or nil
+  if not useLocal then data=manual end
   local function request(operation,payload)
     local code,problem=bridge.request(operation,payload)
     staffStatus=code and 'Żądanie oczekuje na przesłanie do bota.' or problem
@@ -481,6 +557,25 @@ local function staffPage()
   local reviewPage=data and data.page or 1
   local awaiting=bridge.waitingForStaffBridge()
   local outboxStatus=bridge.staffOutboxStatus()
+  if useLocal then
+    local title,detail,color
+    if awaiting then
+      title='Decyzja lub wiadomość w kolejce'
+      detail='Po zapisaniu odczekaj około 20 sekund i ponownie wczytaj dane.'
+      color=gold
+    elseif automatic then
+      title='Lokalny odczyt kadry gotowy'
+      detail='Odczyt wniosków • '..date('%d.%m %H:%M',automatic.generatedAt)
+      color=gold
+    else
+      title='Lista wniosków wymaga odświeżenia'
+      detail='Wczytaj dane zapisane przez lokalny synchronizator.'
+      color=red
+    end
+    bar(title,detail,color)
+  else
+    bar('Ręczna wymiana z Discordem','Skopiuj żądanie do bota i wczytaj jego odpowiedź.',muted)
+  end
   if outboxStatus=='expired' or outboxStatus=='invalid' then
     text('Poprzednia operacja wygasła lub jest nieczytelna. Sprawdź jej wynik na Discordzie przed ponowieniem.',12,gold,8)
     if ui.discardStaffRequest then
@@ -493,18 +588,13 @@ local function staffPage()
       addAction('USUŃ STARE ŻĄDANIE...',function() ui.discardStaffRequest=true;render() end,240)
     end
   end
-  if connected then
-    if automatic then
-      text('Połączono z lokalnym synchronizatorem. Kolejka odświeża się po przeładowaniu gry.',12,gold,9)
-    else
-      text('Dane wymagają odświeżenia. Wybierz przycisk poniżej, aby wczytać aktualną kolejkę.',12,gold,9)
-    end
-    addAction(awaiting and 'ZAPISZ I PRZEŁADUJ' or 'ODŚWIEŻ PO PRZEŁADOWANIU',function() ReloadUI() end,275)
+  if useLocal and ReloadUI then
+    addAction(awaiting and 'ZAPISZ / WCZYTAJ WYNIK' or 'WCZYTAJ WNIOSKI Z KOMPUTERA',function() ReloadUI() end,300)
   elseif not ui.staffPostMode then
-    addAction('POBIERZ WNIOSKI',function() request('staff.review.list',tostring(reviewPage)) end,205)
+    addAction('PRZYGOTUJ PROŚBĘ O WNIOSKI',function() request('staff.review.list',tostring(reviewPage)) end,265)
   end
-  if awaiting then text('Synchronizator przetwarza operację. Odczekaj około 20 sekund i wybierz przycisk odświeżenia.',12,gold,9) end
-  if staffStatus or automaticStatus then text(staffStatus or automaticStatus,12,gold) end
+  if useLocal and automaticStatus then text(automaticStatus,12,gold) end
+  if staffStatus and (not useLocal or not automaticStatus) then text(staffStatus,12,gold) end
   if connected then
     addAction(ui.staffManual and 'UKRYJ KODY RĘCZNE' or 'POKAŻ KODY RĘCZNE',function() ui.staffManual=not ui.staffManual; render() end,240)
   end
@@ -528,8 +618,9 @@ local function staffPage()
         local current=bridge.staffPostPayload(channels[selected],input:GetText())
         ui.staffPostConfirm=false
         if current~=payload then staffStatus='Treść zmieniła się. Sprawdź podgląd ponownie.';render();return end
-        if automatic and not ui.staffManual then
-          local _,message=bridge.queueLocalPost(payload);staffStatus=message;render()
+        if useLocal then
+          local queued,message=bridge.queueLocalPost(payload);staffStatus=message
+          if queued and ReloadUI then ReloadUI() else render() end
         else request('staff.post',payload) end
       end,210)
       addAction('ANULUJ',function() ui.staffPostConfirm=false;render() end,120)
@@ -540,7 +631,7 @@ local function staffPage()
       end,270)
     end
   end
-  if not connected or ui.staffManual then
+  if not useLocal then
     transferFields('',function(code)
       local ok,message=bridge.accept(code,true)
       staffStatus=message
@@ -568,12 +659,12 @@ local function staffPage()
       if staffDecision then
         local chosen=staffDecision
         text((chosen=='approve' and 'Przyjąć ' or 'Odrzucić wniosek ')..plain(entry.name)..'?',12,gold,5)
-        addAction(automatic and 'PRZEKAŻ DECYZJĘ' or 'PRZYGOTUJ DECYZJĘ',function()
+        addAction(useLocal and 'PRZEKAŻ DECYZJĘ' or 'PRZYGOTUJ DECYZJĘ',function()
           local payload=table.concat({reviewPage,chosen,entry.id,entry.revision},':')
-          if automatic and not ui.staffManual then
+          if useLocal then
             local queued,message=bridge.queueLocalDecision(payload)
             staffStatus=message;staffDecision=nil
-            if queued then ReloadUI() else render() end
+            if queued and ReloadUI then ReloadUI() else render() end
           else request('staff.review.decide',payload) end
         end,230)
         addAction('ANULUJ',function() staffDecision=nil; render() end,120)
@@ -588,7 +679,12 @@ local function staffPage()
   end
   if #data.applications==0 then text('Brak wniosków na tej stronie.',12,muted) end
   if reviewPage>1 then addAction('POPRZEDNIA STRONA',function() request('staff.review.list',tostring(reviewPage-1)) end,220) end
-  if data.hasMore then addAction('NASTĘPNA STRONA',function() if automatic then ui.staffManual=true end; request('staff.review.list',tostring(reviewPage+1)) end,220) end
+  if data.hasMore then
+    addAction(useLocal and 'NASTĘPNA STRONA · KODY' or 'NASTĘPNA STRONA',function()
+      if useLocal then ui.staffManual=true end
+      request('staff.review.list',tostring(reviewPage+1))
+    end,235)
+  end
 end
 
 local function showPrivateEvent(e)
@@ -2492,7 +2588,7 @@ local function archivePage()
 end
 local showSetup
 local function help()
-  section('INFORMACJE  /  POMOC','Jak to działa?','Wersja 0.6.42-alfa • WoW Forever • interfejs 16001')
+  section('INFORMACJE  /  POMOC','Jak to działa?',(addonVersion and (tr('Wersja')..' '..addonVersion..'  •  ') or '')..'WoW Forever')
   addAction('DIAGNOSTYKA — KOPIUJ RAPORT',function() if NS.Diagnostics then NS.Diagnostics.show() end end,300)
   addAction('JĘZYK: POLSKI',function()
     NS.Language.set(NS.Language.language()=='pl' and 'en' or 'pl'); render()
@@ -2502,7 +2598,7 @@ local function help()
   bar('NAWIGACJA','Wybierz kategorię po lewej stronie, a następnie jedną z jej podstron.',red)
   bar('ROSTER','Dane pobierane z gry. W razie pustej listy użyj odświeżania.',red)
   bar('WYDARZENIA I CHECKLISTA','Prywatne plany i checklista pozostają na postaci. Wydarzenia gildii wysyłane są osobno.',gold)
-  bar('SYNCHRONIZACJA','SIEĆ zawiera kopie odebrane od innych graczy; sprawdzaj ich aktualność.',red)
+  bar('SYNCHRONIZACJA','Otwórz Discord w menu, aby sprawdzić lokalny odczyt i parowanie.',red,function() page='DISCORD'; render() end)
   bar('PROFESJE','Katalog pokazuje profesje dobrowolnie udostępnione przez graczy; receptury wymagają potwierdzenia.',red)
   bar('DISCORD I ROSTER','Synchronizator GM może przekazać roster po zapisaniu danych gry. Aktualizacja nie jest natychmiastowa.',gold)
   bar('WĄŻ HORDY','Wpisz /tssnake, aby zagrać. /tssnake auto włącza lub wyłącza automatyczne otwieranie podczas dłuższego lotu.',red)
@@ -2616,7 +2712,8 @@ function NS.settingsPage()
     option('guildLinks','Odnośniki w czacie gildii','Otwieraj wydarzenia i ogłoszenia z wiadomości w grze.')
     option('guildLoot','Łupy i lista życzeń','Zgłoszenia gildii i widok przedmiotów do zdobycia.')
     option('archive','Archiwum wiadomości dodatku','Zachowuje przekazane wpisy starszych sesji.')
-    row('Dane z Discorda','Odczyt przez skonfigurowany synchronizator.',db.autoDiscord~=false,function(on) db.autoDiscord=on end)
+    row('Lokalny odczyt Discorda','Wymaga synchronizatora i przeładowania interfejsu.',db.autoDiscord~=false,function(on) db.autoDiscord=on end)
+    addAction('OTWÓRZ POŁĄCZENIE Z DISCORDEM',function() page='DISCORD'; render() end,305)
   elseif category==2 then
     row('Znaczniki na mapie świata','Zapisane miejsca i surowce.',db.mapPinsWorld==true,function(on) db.mapPinsWorld=on end)
     row('Znaczniki na minimapie','Zapisane miejsca w pobliżu postaci.',db.mapPinsMini==true,function(on) db.mapPinsMini=on end)
@@ -2666,11 +2763,12 @@ end
 local handlers={KADRA=staffPage,USTAWIENIA=NS.settingsPage,START=start,GILDIA=guildPage,['RZEMIOSŁO']=craftPage,ZASOBY=resourcesPage,DISCORD=discordPage,WYDARZENIA=eventsPage,TABLICA=boardPage,RAIDY=raidsPage,['ŁUPY']=lootPage,MAPA=mapPage,PROFIL=profilePage,['SIEĆ']=archivePage,['POSTAĆ']=characterPage,PRZYGOTOWANIE=checklist,HISTORIA=history,POMOC=help}
 render=function()
   if not ui then return end
+  local staffAllowed=isGuildOfficer()
+  if page=='KADRA' and not staffAllowed then page='START' end
+  local offset=ui.renderedPage==page and ui.scroll:GetVerticalScroll() or 0
   if ui.heroLight then ui.heroLight:SetAlpha(1) end
   ui.heroLight=nil
   clear()
-  local staffAllowed=isGuildOfficer()
-  if page=='KADRA' and not staffAllowed then page='START' end
   local currentGroup=groupByPage[page] or 'HOME'
   local y=-40
   for _,g in ipairs(groups) do
@@ -2682,10 +2780,10 @@ render=function()
       parent.label:SetText(tr(g.label))
       parent.label:SetTextColor(unpack(g.id==currentGroup and gold or muted))
       parent.selected:SetShown(g.id==currentGroup)
-      if g.id~='HOME' and g.id~='STAFF' then parent.chevron:SetText(g.id==currentGroup and '▾' or '▸') end
+      if not g.standalone then parent.chevron:SetText(g.id==currentGroup and '▾' or '▸') end
       parent.marker:SetShown(g.id==currentGroup)
       y=y-35
-      if g.id~='HOME' and g.id~='STAFF' then
+      if not g.standalone then
         for _,name in ipairs(g.pages) do
           local b=ui.tabs[name]
           b.label:SetText(tr(name=='USTAWIENIA' and 'PRZEŁĄCZNIKI' or name))
@@ -2697,13 +2795,14 @@ render=function()
       end
     end
   end
-  if not db.setupDone then finish(); showSetup(); return end
+  if not db.setupDone then ui.renderedPage=nil; finish(); showSetup(); return end
   local modules={TABLICA='board',WYDARZENIA='planner',['RZEMIOSŁO']='lookup',ZASOBY='lookup',['ŁUPY']='guildLoot',['SIEĆ']='archive'}
   if modules[page] and not feature(modules[page]) then
     section(nil,'Funkcja wyłączona')
     addAction('OTWÓRZ USTAWIENIA',function() page='USTAWIENIA'; ui.settingsCategory=1; render() end,240)
   else handlers[page]() end
-  finish()
+  ui.renderedPage=page
+  finish(offset)
 end
 local function createUI()
   local root=CreateFrame('Frame','TheSentencedMain',UIParent,'BackdropTemplate')
@@ -2747,10 +2846,10 @@ local function createUI()
     parent:SetHighlightTexture('Interface\\QuestFrame\\UI-QuestTitleHighlight')
     local icon=parent:CreateTexture(nil,'ARTWORK');icon:SetSize(18,18);icon:SetPoint('LEFT',13,0);icon:SetTexture('Interface\\Icons\\'..groupIcons[g.id])
     parent.label=font(parent,g.label,10,muted); parent.label:SetPoint('LEFT',38,0)
-    if g.id~='HOME' and g.id~='STAFF' then parent.chevron=font(parent,'▸',13,gold); parent.chevron:SetPoint('RIGHT',-14,0) end
+    if not g.standalone then parent.chevron=font(parent,'▸',13,gold); parent.chevron:SetPoint('RIGHT',-14,0) end
     parent.marker=parent:CreateTexture(nil,'ARTWORK'); parent.marker:SetSize(3,27); parent.marker:SetPoint('LEFT',0,0); parent.marker:SetColorTexture(unpack(red))
     parent:SetScript('OnClick',function() page=g.pages[1]; render() end); groupButtons[g.id]=parent
-    if g.id=='HOME' or g.id=='STAFF' then tabs[g.pages[1]]=parent
+    if g.standalone then tabs[g.pages[1]]=parent
     else
       for _,n in ipairs(g.pages) do
         local b=CreateFrame('Button',nil,sidebar); b:SetSize(190,26)
@@ -2768,11 +2867,15 @@ local function createUI()
   ui={root=root,tabs=tabs,groups=groupButtons,scroll=scroll,scrollChild=child}
   tinsert(UISpecialFrames,'TheSentencedMain'); root:Hide()
 end
+local slashPages={discord='DISCORD',ustawienia='USTAWIENIA',settings='USTAWIENIA',kadra='KADRA',staff='KADRA'}
 local function toggle(command)
-  if type(command)=='string' and command:lower():match('^%s*debug%s*$') and NS.Diagnostics then NS.Diagnostics.show(); return end
+  local word=type(command)=='string' and command:lower():match('^%s*(%a+)%s*$')
+  if word=='debug' and NS.Diagnostics then NS.Diagnostics.show(); return end
   if not ui then createUI() end
   if not db.setupDone then
     if ui.setup and ui.setup:IsShown() then ui.setup:Hide() else showSetup() end
+  elseif slashPages[word] then
+    page=slashPages[word]; requestRoster(); ui.root:Show(); render()
   elseif ui.root:IsShown() then ui.root:Hide() else requestRoster(); ui.root:Show(); render() end
 end
 local setupAutoShown=false

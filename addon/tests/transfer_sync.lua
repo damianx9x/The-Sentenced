@@ -104,3 +104,14 @@ assert(T.staffOutboxStatus()=='expired', 'unconfirmed expired request must stay'
 ns.CompanionSnapshot.staff.ack='TSB1|K|'..expiredId..'|1795000901|'..hex('Icex Jenkins-Realm')..'|1|0|APPROVED'
 local _,recoveredMessage=T.localStaff()
 assert(recoveredMessage:find('potwierdził przyjęcie') and not T.staffOutboxStatus())
+
+-- A receipt must refer to the queued operation, including after an outage.
+GetServerTime=function() return 1795000000 end
+assert(T.queueLocalPost(staffPost))
+local latePostId=T.waitingForStaffBridge()
+GetServerTime=function() return 1795000901 end
+ns.CompanionSnapshot.staff.ack='TSB1|K|'..latePostId..'|1795000901|'..hex('Icex Jenkins-Realm')..'|1|0|APPROVED'
+assert(T.localStaff() and T.staffOutboxStatus()=='expired', 'decision cannot confirm a post')
+ns.CompanionSnapshot.staff.ack=publication:gsub(postId,latePostId,1):gsub('|1795000000|','|1795000901|',1)
+local _,latePostReceipt=T.localStaff()
+assert(latePostReceipt:find('opublikował') and not T.staffOutboxStatus(), 'late confirmed post is recovered')

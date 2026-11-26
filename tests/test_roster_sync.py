@@ -53,9 +53,6 @@ class WelcomeBridgeTests(unittest.TestCase):
   with self.assertRaises(ValueError):mod.sync_welcomes([],lambda body:dict(value,welcomes=[None]),1800000000)
   bad=dict(value,welcomes=[dict(value['welcomes'][0],text='bad|escape')])
   with self.assertRaises(ValueError):mod.sync_welcomes([],lambda body:bad,1800000000)
-if __name__=='__main__':unittest.main()
-
-
 class StaffBridgeTests(unittest.TestCase):
     def test_staff_outbox_is_bounded_and_matches_paired_character(self):
         import tempfile
@@ -65,6 +62,7 @@ class StaffBridgeTests(unittest.TestCase):
         stamp=1795000000
         request=f'TSB1|Q|0123456789abcdef|{identity}|staff.review.decide|1:approve:123456789012345678:3'
         queue=f'TSB1|K|fedcba9876543210|{stamp}|{identity}|1|0|-'
+        ack=queue.replace('fedcba9876543210','0123456789abcdef').replace('|-','|APPROVED')
         with tempfile.TemporaryDirectory() as work:
             folder=Path(work)/'Account'/'Forever'/'Icex'/'SavedVariables'
             folder.mkdir(parents=True)
@@ -74,13 +72,32 @@ class StaffBridgeTests(unittest.TestCase):
             self.assertEqual(len(decisions),1)
             self.assertEqual(len(sync.pending_staff_decisions(Path(work),now=stamp+901)),1)
             self.assertEqual(sync.pending_staff_decisions(Path(work),now=stamp+30*86400+1),[])
+            expired_post=request.replace('staff.review.decide|1:approve:123456789012345678:3','staff.post|general:74657374')
+            file.write_text(f'["staffReviewOutboxV1"] = "TSA1|{stamp}|{expired_post}",')
+            self.assertEqual(len(sync.pending_staff_decisions(Path(work),now=stamp+901)),1)
+            with file.open('a') as stream:
+                stream.write(f'["staffReviewOutboxV1"] = "TSA1|{stamp}|{request}",')
+            self.assertEqual(sync.pending_staff_decisions(Path(work),now=stamp),[])
         calls=[]
         def sender(payload):
             calls.append(payload)
-            return {'status':'ready','character':character,'queue':queue,'acknowledgement':queue if payload else None}
+            return {'status':'ready','character':character,'queue':queue,'acknowledgement':ack if payload else None}
         result=sync.sync_staff(decisions,sender)
         self.assertEqual(calls,[{}, {'decision':decisions[0]}])
-        self.assertEqual(result,{'queue':queue,'ack':queue})
+        self.assertEqual(result,{'queue':queue,'ack':ack})
         value={'generatedAt':stamp,'raids':[],'expeditions':[],'staff':result}
         self.assertNotIn(queue.encode(),sync.events_lua(value))
         self.assertIn(b'staff={queue=',sync.events_lua(value))
+
+        def mismatched_receipt(payload):
+            return {**sender(payload),'acknowledgement':queue if payload else None}
+        with self.assertRaisesRegex(ValueError,'STAFF_RECEIPT_MISMATCH'):
+            sync.sync_staff(decisions,mismatched_receipt)
+
+        def pair_changed(payload):
+            return {**sender(payload),'character':'Other-Realm'} if payload else sender(payload)
+        with self.assertRaisesRegex(ValueError,'STAFF_PAIR_CHANGED'):
+            sync.sync_staff(decisions,pair_changed)
+
+
+if __name__=='__main__':unittest.main()

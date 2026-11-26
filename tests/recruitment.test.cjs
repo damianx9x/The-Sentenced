@@ -63,7 +63,7 @@ test('store transitions must require consent, exact revision and officer',()=>{
 });
 
 // Lightweight Discord mock: verify that NO roles are added before an officer approval.
-function setup({recordApproved,recordApplication}={}){
+function setup({recordApproved,recordApplication,publishApplication}={}){
  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT)');
  const roles=new Map();roles.set(guildId,{id:guildId,name:'@everyone',permissions:{bitfield:0n},position:0});
  for(const [name,id] of Object.entries(roleIds))roles.set(id,{id,name,permissions:{bitfield:0n},position:name==='SentencedBot'?10:2});
@@ -97,7 +97,7 @@ function setup({recordApproved,recordApplication}={}){
  staff.send=async payload=>{staffPayload=payload;return {id:'345678901234567890'};};
  class Fluent{setCustomId(){return this}setTitle(){return this}setLabel(){return this}setRequired(){return this}setMaxLength(){return this}setStyle(){return this}addComponents(){return this}}
  const discord={ModalBuilder:Fluent,TextInputBuilder:Fluent,ActionRowBuilder:Fluent,TextInputStyle:{Short:1,Paragraph:2}};
- const runtime=createRuntime({db,guildId,discord,config,getSetting:k=>settings.get(k),setSetting:(k,v)=>settings.set(k,v),sendWelcome:async()=>true,recordApplication,recordApproved});
+ const runtime=createRuntime({db,guildId,discord,config,getSetting:k=>settings.get(k),setSetting:(k,v)=>settings.set(k,v),sendWelcome:async()=>true,recordApplication,recordApproved,publishApplication});
  const logs=[];
  function interaction(id,actor=applicantId,extra={}){const o={guild,guildId,user:{id:actor},customId:id,channelId:extra.channelId||(id.startsWith('ts:terms:')?rulesId:startId),
   message:extra.message||null,values:extra.values||[],fields:{getTextInputValue:k=>(extra.fields||{})[k]},
@@ -152,6 +152,31 @@ test('returning member requires nick and refusal never grants Member',async()=>{
  t.db.close();
 });
 
+test('a late submission callback projects the staff decision already saved by the addon',async()=>{
+ let startProfile,finishProfile;
+ const profileStarted=new Promise(resolve=>{startProfile=resolve;});
+ const resumeProfile=new Promise(resolve=>{finishProfile=resolve;});
+ const projected=[];
+ const t=setup({
+  recordApplication:async()=>{startProfile();await resumeProfile;},
+  publishApplication:(id,app,status)=>projected.push({id,nick:app.gameNick,status}),
+ });
+ try{
+  await t.runtime.handle(t.interaction('ts:terms:accept:'+termsHash(rules).slice(0,16)));
+  await t.runtime.handle(t.interaction('ts:apply:branch:yes'));
+  await t.runtime.handle(t.interaction('ts:modal:oldnick',applicantId,{fields:{nick:'DawnyNick',gameNick:'Nowy Nick'}}));
+  await t.runtime.handle(t.interaction('ts:source:ingame'));
+  const submit=t.runtime.handle(t.interaction('ts:apply:send:v2'));
+  await profileStarted;
+  const revision=t.store.get(applicantId).submitted_revision;
+  assert.deepEqual(await t.runtime.reviewApplication(t.guild,officerId,'approve',applicantId,revision),{state:'APPROVED'});
+  finishProfile();
+  await submit;
+  assert.deepEqual(projected.map(x=>x.status),['APPROVED','APPROVED']);
+  assert.ok(projected.every(x=>x.id===applicantId&&x.nick==='Nowy Nick'));
+ } finally {finishProfile();t.db.close();}
+});
+
 test('staff may approve a valid application after access was manually granted',async()=>{
  const t=setup(), hash=termsHash(rules);
  await t.runtime.handle(t.interaction('ts:terms:accept:'+hash.slice(0,16)));
@@ -199,6 +224,16 @@ test('raid YES prompts for hours and multiselect weekdays, then requires explici
  await t.runtime.handle(t.interaction('ts:modal:game-nick',applicantId,{fields:{gameNick:'Marek Orc'}}));
  await t.runtime.handle(t.interaction('ts:select:styles',applicantId,{values:['Raidowanie','PvP']}));
  await t.runtime.handle(t.interaction('ts:raid:yes'));
+ const beforeInvalid=t.store.get(applicantId);
+ for(const hours of ['0','169','1e2','7-8','7 h']){
+  await t.runtime.handle(t.interaction('ts:modal:hours',applicantId,{fields:{hours}}));
+  assert.match(t.logs.at(-1).content,/np\. 7 lub 7,5/);
+  assert.deepEqual(collectButtons(t.logs.at(-1)),['ts:raid:yes','ts:raid:no']);
+  assert.equal(t.store.get(applicantId).application_json,beforeInvalid.application_json);
+  assert.equal(t.store.get(applicantId).revision,beforeInvalid.revision);
+ }
+ await t.runtime.handle(t.interaction('ts:raid:yes'));
+ assert.ok(t.logs.at(-1).modal);
  await t.runtime.handle(t.interaction('ts:modal:hours',applicantId,{fields:{hours:'7,5'}}));
  await t.runtime.handle(t.interaction('ts:select:days',applicantId,{values:['pon','czw','sob']}));
  assert.equal(t.store.get(applicantId).state,'DRAFT');

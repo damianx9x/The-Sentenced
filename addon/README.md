@@ -1,4 +1,4 @@
-# The Sentenced Guild Hall 0.6.42-alpha
+# The Sentenced Guild Hall 0.6.43-alpha
 
 Dodatek dla klienta WoW Forever (interfejs 16001). Otwórz panel komendą `/ts`, a grę komendą `/tssnake`. `/tssnake auto` włącza lub wyłącza automatyczne otwarcie podczas dłuższego lotu.
 
@@ -24,7 +24,7 @@ Na skonfigurowanym Macu właściciela istniejący lokalny most może też pobier
 
 **Gildia i ogłoszenia → Discord** udostępnia ręczną synchronizację dla członków na dowolnym systemie. Na Discordzie wybierz `/bot → Addon → Połącz addon`, wpisz jednorazowy kod w grze i skopiuj wygenerowane żądanie do `/bot → Addon → Synchronizacja dodatku`. Odpowiedź z pliku bota wklej z powrotem w addon. W ten sposób odczytasz przyszłe raidy oraz przygotujesz zapis TAK/MOŻE/NIE. Zmiana następuje dopiero po przekazaniu żądania botowi; addon pokazuje wyłącznie potwierdzony stan. Zmiana lub zapełnienie raidu może wymagać ponownego odczytu. Nie jest to automatyczna synchronizacja ani test wszystkich systemów; weryfikowano klient Forever na Macu i logikę serwera.
 
-Lokalny most właściciela pobiera także kolejkę nowych powitań po zaakceptowaniu zgłoszenia. Po `/reload` w zakładce Discord wybierz przygotowanie powitania, sprawdź tekst i naciśnij Enter. Addon zaznacza wysłanie dopiero po własnym echu na `/g`; kolejne zapisanie danych gry odsyła potwierdzenie na serwer. W tym kliencie automatyczny wysył z timera został zablokowany. Zwykłą wiadomość `/g` potwierdzono również na połączonym kanale Discord. Wiek kolejki jest ograniczony do 24 godzin; historyczne powitania nie są odtwarzane.
+Po zatwierdzeniu zgłoszenia bot wita gracza komentarzem pod wnioskiem na forum Discorda.
 
 Snake inspirowany Snake II ma cztery trasy, w tym labirynty i przejście przez brzegi planszy. Co pięć artefaktów na chwilę pojawia się bonus: tarcza pochłania jedno zderzenie, zegar spowalnia grę, a moneta daje podwójne punkty. Kliknięcie **Trasa** rozpoczyna nową grę. Plansza ma własne tło, a rozgrywka zaczyna się po wyborze kierunku. Strzałki sterują grą bez poruszania postacią, inne klawisze pozostają dostępne. Pola tekstowe korzystają z szablonu `InputBoxTemplate` klienta, a w razie niedostępności z własnego pola zastępczego. W WoW Forever sprawdzono ekran startowy, roster, katalog profesji, otwarcie i walidację formularza wydarzenia oraz widok i sterowanie Snake. Wymiana danych między różnymi graczami w tej wersji wymaga dodatkowego testu. Wersja jest alfą.
 
@@ -34,7 +34,7 @@ Grafika `Textures/SnakeBoard.tga` została wygenerowana dla tej wersji dodatku. 
 
 GM i oficerowie gry znajdą osobną pozycję **Kadra** w lewym menu. Bot sprawdza aktualny dostęp do kanału kadry, zgodę na regulamin, Discord Screening i rewizję wniosku.
 
-Na skonfigurowanym Macu właściciela synchronizator odświeża kolejkę co minutę. W grze dane wczytują się po **/reload**. Otwórz wniosek, wybierz decyzję i potwierdź **Przekaż decyzję**. Użyj **Zapisz i przeładuj** lub wyloguj się, by zapisać ją dla synchronizatora. Wynik będzie widoczny po następnym przeładowaniu, gdy synchronizator skończy pracę.
+Na skonfigurowanym Macu właściciela system uruchamia synchronizator co 15 sekund. Przeładowanie interfejsu WoW zapisuje decyzję do kolejki i wczytuje ostatni odczyt. Otwórz wniosek, wybierz decyzję i potwierdź **Przekaż decyzję**. Załaduj wynik po zakończeniu synchronizacji. Jeśli odpowiedź zgubiła się po publikacji, most może odzyskać potwierdzenie z bazy bota.
 
 Na innych stanowiskach sparuj postać przez **/bot → Addon → Połącz addon**. Użyj **Pobierz wnioski**, przekaż żądanie przez **Synchronizacja dodatku** na Discordzie i wczytaj odpowiedź z załącznika. Po wybraniu decyzji przekaż osobne żądanie i wczytaj potwierdzenie. Dane wniosków nie są przesyłane kanałem gildii ani dołączane do ZIP-a.
 

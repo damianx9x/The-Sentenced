@@ -3,12 +3,37 @@ test('public application shows complete answers and updates same thread',async()
  const db=new DatabaseSync(':memory:'),events=[];let message;const thread={id:'t',parentId:'forum',archived:false,fetchStarterMessage:async()=>({author:{id:'bot'},edit:async p=>events.push(['edit',p])}),setName:async n=>events.push(['name',n]),setAppliedTags:async t=>events.push(['tags',t]),send:async payload=>{events.push(['welcome',payload]);return {id:'welcome'}}};
  const forum={type:15,availableTags:[{name:'Oczekujące',id:'pending'},{name:'Ostatnie',id:'recent'}],threads:{create:async p=>{message=p;return thread}}};const guild={client:{user:{id:'bot'}},channels:{fetch:async id=>id==='forum'?forum:thread}};const pub=createPublicApplications({db,guild,forumId:'forum'});const app={gameNick:'Nick',wowClass:'Mage',firstName:'PRIVATE-NAME',age:42};
  assert.equal((await pub.update('123456789012345678',app,'PENDING')).status,'CREATED');assert.equal(JSON.stringify(message).includes('PRIVATE-NAME'),true);assert.equal(JSON.stringify(message).includes('42'),true);assert.deepEqual(message.message.components,[]);assert.deepEqual(message.appliedTags,['pending']);
- assert.equal((await pub.update('123456789012345678',app,'APPROVED')).status,'UPDATED');assert.deepEqual(events.at(-2),['tags',['recent']]);
- const welcome=events.at(-1)[1];
+ assert.equal((await pub.update('123456789012345678',app,'APPROVED')).status,'UPDATED');assert.deepEqual(events.at(-1),['tags',['recent']]);
+ const welcome=events.find(([action])=>action==='welcome')[1];
  assert.match(welcome.content,/Gniewna Jaga/);
  assert.deepEqual(welcome.allowedMentions,{parse:[],users:['123456789012345678']});
  await pub.update('123456789012345678',app,'APPROVED');
  assert.equal(events.filter(([action])=>action==='welcome').length,1);
+});
+test('the verified application thread receives exactly one welcome even when a cosmetic edit fails',async()=>{
+ const db=new DatabaseSync(':memory:'),id='123456789012345678';
+ const posts=[];
+ let fails=true;
+ const thread={
+  id:'application-thread',parentId:'forum',archived:false,
+  fetchStarterMessage:async()=>({author:{id:'bot'},edit:async()=>{}}),
+  send:async payload=>{posts.push(payload);return {id:'welcome-message'};},
+  setName:async()=>{},setAppliedTags:async()=>{if(fails)throw Error('TAG_EDIT_FAILED');}
+ };
+ const forum={type:15,availableTags:[{name:'Oczekujące',id:'pending'},{name:'Ostatnie',id:'recent'}],
+  threads:{create:async()=>thread}};
+ const guild={client:{user:{id:'bot'}},channels:{fetch:async channel=>channel==='forum'?forum:thread}};
+ const pub=createPublicApplications({db,guild,forumId:'forum'});
+ const app={gameNick:'Nowy Nick'};
+ await pub.update(id,app,'PENDING');
+ assert.equal(posts.length,0);
+ await assert.rejects(pub.update(id,app,'APPROVED'),/TAG_EDIT_FAILED/);
+ assert.equal(posts.length,1);
+ assert.deepEqual(posts[0].allowedMentions,{parse:[],users:[id]});
+ fails=false;
+ assert.equal((await pub.update(id,app,'APPROVED')).status,'UPDATED');
+ assert.equal(posts.length,1);
+ db.close();
 });
 test('uncertain creation is not retried blindly',async()=>{const db=new DatabaseSync(':memory:');let calls=0;const forum={type:15,availableTags:[{name:'Oczekujące',id:'p'}],threads:{create:async()=>{calls++;throw Error('timeout')}}};const pub=createPublicApplications({db,guild:{channels:{fetch:async()=>forum}},forumId:'f'});await assert.rejects(pub.update('123456789012345678',{gameNick:'Nick'},'PENDING'));assert.equal((await pub.update('123456789012345678',{gameNick:'Nick'},'PENDING')).status,'UNCERTAIN');assert.equal(calls,1);});
 

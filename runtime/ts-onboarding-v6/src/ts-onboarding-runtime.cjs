@@ -133,7 +133,16 @@ function createRuntime({db,guildId,discord,config,getSetting,setSetting,getChann
  function requireCurrent(i,row,m){if(m.pending!==false)throw Error('SCREENING_NOT_CONFIRMED');if(config.rulesId&&!m.roles.cache.has(onlyOneByName(i.guild.roles.cache,'Oczekujący').id))throw Error('WAITING_ROLE_MISSING');if(!row||!['TERMS_ACCEPTED','DRAFT'].includes(row.state)||row.terms_hash!==hash||!row.accepted_at)throw Error('NO_CURRENT_TERMS_CONSENT');if(i.user.id!==row.user_id)throw Error('CROSS_USER');}
  function draftSave(i,m,patch){const row=store.get(m.id);requireCurrent(i,row,m);const merged={...draftDecode(row),...patch};const result=store.draft(m.id,hash,merged,Date.now(),{nativePending:m.pending});if(!result.ok)throw Error(result.reason);return merged;}
  async function sendStaff(guild,userId){const row=store.get(userId);if(!row||row.state!==ST.SUBMITTED||!row.application_json)throw Error('NOT_SUBMITTED');if(!store.reserveStaffDispatch(userId,Date.now()).ok)return {sent:false,reason:'ALREADY_QUEUED'};const channel=await guild.channels.fetch(config.staffId);if(!channel||channel.type!==0||!channel.send)throw Error('STAFF_TEXT_CHANNEL_UNAVAILABLE');try{const application=JSON.parse(row.application_json);const payload=staffReview({userId,wasMember:application.wasMember,application,revision:row.submitted_revision});const msg=await channel.send(payload);if(!store.recordStaffMessage(userId,msg.id,Date.now()).ok)throw Error('STAFF_RECEIPT_UNCERTAIN');return {sent:true};}catch(error){/* A timed-out Discord send may have succeeded. Never replay blindly. */throw Error('STAFF_DISPATCH_UNCERTAIN:'+error.message);}}
- async function submit(i,m,app){const row=store.get(m.id);requireCurrent(i,row,m);if(!basicText(app.gameNick,60))throw Error('GAME_NICK_REQUIRED');const v=validApplication(app);if(!v.allowed)throw Error(v.reason);const sub=store.submit(m.id,hash,app,Date.now(),{nativePending:m.pending});if(!sub.ok)throw Error(sub.reason);try{await recordApplication?.(m.id,app);}catch(_){console.error('[recruitment] Projekcja profilu wymaga uzgodnienia');}Promise.resolve().then(()=>publishApplication?.(m.id,app,'PENDING')).catch(()=>console.error('[recruitment] Publiczna karta wymaga uzgodnienia'));try{const res=await sendStaff(i.guild,m.id);return res.sent?`✅ **Wniosek wysłany do kadry.** Napisz w grze do ${inviteContacts(true)}, aby umówić zaproszenie. Do decyzji kadry pozostajesz w #poczekalnia.`:'Zgłoszenie zapisane; kadra może już je przetwarzać.';}catch(e){return 'Zgłoszenie zapisane, ale doręczenie kadrze jest niepewne. Nie wysyłaj go ponownie. Skontaktuj się z oficerem.';}}
+ function queuePublicApplication(userId){
+  if(!publishApplication)return;
+  Promise.resolve().then(()=>{
+   const current=store.get(userId);
+   const status={SUBMITTED:'PENDING',GRANTING:'PENDING',APPROVED:'APPROVED',REJECTED:'REJECTED'}[current?.state];
+   if(!status||!current.application_json)return;
+   return publishApplication(userId,JSON.parse(current.application_json),status);
+  }).catch(()=>console.error('[recruitment] Publiczna karta wymaga uzgodnienia'));
+ }
+ async function submit(i,m,app){const row=store.get(m.id);requireCurrent(i,row,m);if(!basicText(app.gameNick,60))throw Error('GAME_NICK_REQUIRED');const v=validApplication(app);if(!v.allowed)throw Error(v.reason);const sub=store.submit(m.id,hash,app,Date.now(),{nativePending:m.pending});if(!sub.ok)throw Error(sub.reason);try{await recordApplication?.(m.id,app);}catch(_){console.error('[recruitment] Projekcja profilu wymaga uzgodnienia');}queuePublicApplication(m.id);try{const res=await sendStaff(i.guild,m.id);return res.sent?`✅ **Wniosek wysłany do kadry.** Napisz w grze do ${inviteContacts(true)}, aby umówić zaproszenie. Do decyzji kadry pozostajesz w #poczekalnia.`:'Zgłoszenie zapisane; kadra może już je przetwarzać.';}catch(e){return 'Zgłoszenie zapisane, ale doręczenie kadrze jest niepewne. Nie wysyłaj go ponownie. Skontaktuj się z oficerem.';}}
  async function stepMessage(i,m,patch,text,next){draftSave(i,m,patch);return answer(i,ep(text,next));}
  async function showSource(i,m,patch={}){
   return stepMessage(i,m,{...patch,referralSource:undefined},'**Skąd dowiedziałeś się o gildii?**',
@@ -230,7 +239,7 @@ function createRuntime({db,guildId,discord,config,getSetting,setSetting,getChann
   const actor={id:moderator.id,guildId,authorized:true,isBot:moderator.user.bot,applicationRevision:revision};
   const result=store.decide(userId,hash,actor,act,Date.now(),{nativePending:target.pending,memberPresent:true});if(!result.ok)throw Error(result.reason);
   if(act==='reject'){
-   Promise.resolve().then(()=>publishApplication?.(userId,JSON.parse(candidate.application_json),'REJECTED')).catch(()=>console.error('[recruitment] Publiczna karta wymaga uzgodnienia'));
+   queuePublicApplication(userId);
    try{await publishDecision({content:`❌ Wniosek odrzucony przez <@${moderator.id}>.`,components:[],embeds:[],allowedMentions:NO_MENTIONS});}catch(_){console.error('[recruitment] Karta decyzji wymaga odświeżenia');}
    try{await target.send('Twoje zgłoszenie do The Sentenced zostało odrzucone. W razie pytań skontaktuj się z kadrą.');}catch(_){}
    return {state:ST.REJECTED};
@@ -265,7 +274,7 @@ function createRuntime({db,guildId,discord,config,getSetting,setSetting,getChann
    try{await fresh.roles.remove(waiting,'TS gate: akceptacja');}catch(_){console.error('[recruitment] Rola oczekującego wymaga uzgodnienia');}
   }
   try{await recordApproved?.(userId,moderator.id,JSON.parse(candidate.application_json));}catch(_){console.error('[recruitment] Projekcja decyzji wymaga uzgodnienia');}
-  Promise.resolve().then(()=>publishApplication?.(userId,JSON.parse(candidate.application_json),'APPROVED')).catch(()=>console.error('[recruitment] Publiczna karta wymaga uzgodnienia'));
+  queuePublicApplication(userId);
   try{await publishDecision({content:`✅ Wniosek zatwierdził <@${moderator.id}>. Rola Member i dostęp potwierdzone.`,components:[],embeds:[],allowedMentions:NO_MENTIONS});}catch(_){console.error('[recruitment] Karta decyzji wymaga odświeżenia');}
   try{await target.send('Twoje zgłoszenie do The Sentenced zostało zaakceptowane. Masz już rangę Member i dostęp do kanałów gildii.');}catch(_){}
   if(store.claimWelcome(userId,Date.now()).ok){
@@ -444,10 +453,24 @@ function createRuntime({db,guildId,discord,config,getSetting,setSetting,getChann
     const x=i.values;if(!Array.isArray(x)||!x.length||x.length>3||x.some(y=>!STYLES.includes(y))||new Set(x).size!==x.length)throw Error('BAD_PLAYSTYLES');
     await stepMessage(i,m,{playstyles:x},'Czy planujesz raidować?',controls(button('Tak','ts:raid:yes',3),button('Nie','ts:raid:no',2)));return true;
    }
-   if(id==='ts:raid:yes'){draftSave(i,m,{raidPlan:true});await i.showModal(mkModal(discord,'ts:modal:hours','The Sentenced — raidowanie',[{id:'hours',label:'Ile godzin tygodniowo?',max:5}]));return true;}
+   if(id==='ts:raid:yes'){
+    draftSave(i,m,{raidPlan:true});
+    await i.showModal(mkModal(discord,'ts:modal:hours','The Sentenced — raidowanie',[
+     {id:'hours',label:'Godziny tygodniowo (np. 7 lub 7,5)',max:6}
+    ]));
+    return true;
+   }
    if(id==='ts:raid:no'){await showSource(i,m,{raidPlan:false,raidHoursWeek:undefined,raidDays:undefined});return true;}
    if(id==='ts:modal:hours'){
-    const hours=Number(i.fields.getTextInputValue('hours').trim().replace(',','.'));if(!Number.isFinite(hours)||hours<=0||hours>168)throw Error('BAD_RAID_HOURS');
+    const rawHours=i.fields.getTextInputValue('hours').trim();
+    const hours=Number(rawHours.replace(',','.'));
+    if(!/^\d{1,3}(?:[.,]\d{1,2})?$/.test(rawHours)||hours<=0||hours>168){
+     await answer(i,ep(
+      'Wpisz liczbę godzin tygodniowo większą od 0 i nie większą niż 168, np. 7 lub 7,5. Twoje wcześniejsze odpowiedzi są zapisane.',
+      controls(button('Popraw liczbę godzin','ts:raid:yes',1),button('Nie planuję rajdów','ts:raid:no',2))
+     ));
+     return true;
+    }
     await stepMessage(i,m,{raidHoursWeek:hours},'Wybierz dni odpowiednie na rajdy (wiele):',[menu('ts:select:days','Dni tygodnia',DAYS,7)]);return true;
    }
    if(id==='ts:select:days'){

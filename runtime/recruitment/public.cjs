@@ -55,7 +55,14 @@ function createPublicApplications({db,guild,forumId,clock=Date.now}){
     if(versions.get(userId)!==version)return {status:'SUPERSEDED'};
     const thread=await guild.channels.fetch(state.thread_id);if(!thread||thread.parentId!==forumId)throw Error('PUBLIC_THREAD_MISSING');
     if(thread.archived)await thread.setArchived(false);const first=await thread.fetchStarterMessage();if(!first||first.author.id!==guild.client.user.id)throw Error('PUBLIC_THREAD_AUTHOR');
-    await first.edit(p.message);await thread.setName(p.name);await thread.setAppliedTags([tags[0].id]);finish.run(thread.id,clock(),userId);await welcome(thread,userId,status);return {status:'UPDATED'};
+    await first.edit(p.message);
+    // The approval is visible in the correct thread. A cosmetic Discord
+    // failure while changing its tag or title must not suppress the welcome.
+    await welcome(thread,userId,status);
+    if(thread.name!==p.name)await thread.setName(p.name);
+    if(thread.appliedTags?.length!==1||thread.appliedTags[0]!==tags[0].id)await thread.setAppliedTags([tags[0].id]);
+    finish.run(thread.id,clock(),userId);
+    return {status:'UPDATED'};
    });
    updates.set(userId,job);
    try{return await job;}finally{if(updates.get(userId)===job)updates.delete(userId);}

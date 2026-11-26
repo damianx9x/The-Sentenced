@@ -134,6 +134,33 @@ module.exports=function createGateway({db,guild,hasPlayer,hasStaff,refreshProfil
    try{await refresh(result);result={...result,discord_refreshed:true};db.prepare('UPDATE addon_requests SET status=?,result_json=? WHERE user_id=? AND request_id=?').run('done',JSON.stringify(result),userId,cmd.id);return {...result,id:cmd.id,status:'accepted'}}catch{return {...result,id:cmd.id,status:'refresh_pending'}}
   }finally{active.delete(key)}
  }
- let retrying=false;const retry=setInterval(async()=>{if(retrying||require("./maintenance.cjs").maintenance(db))return;retrying=true;try{const rows=db.prepare("SELECT * FROM addon_requests WHERE status='refresh_pending' ORDER BY created_at LIMIT 5").all();for(const r of rows){try{const result=JSON.parse(r.result_json);await refresh(result);result.discord_refreshed=true;db.prepare('UPDATE addon_requests SET status=?,result_json=? WHERE user_id=? AND request_id=?').run('done',JSON.stringify(result),r.user_id,r.request_id)}catch{}}}finally{retrying=false}},10000);retry.unref();
- return {perform,issuePairCode,snapshot,member,close:()=>clearInterval(retry)};
+ let retrying=false;
+ let retryCursor=0;
+ const nextRefreshes=db.prepare(`
+  SELECT rowid AS position,user_id,request_id,result_json
+  FROM addon_requests WHERE status='refresh_pending' AND rowid>?
+  ORDER BY rowid LIMIT 5`);
+ const completeRefresh=db.prepare(`
+  UPDATE addon_requests SET status='done',result_json=?
+  WHERE user_id=? AND request_id=? AND status='refresh_pending'`);
+ async function retryRefreshes(){
+  if(retrying||require('./maintenance.cjs').maintenance(db))return;
+  retrying=true;
+  try{
+   let rows=nextRefreshes.all(retryCursor);
+   if(!rows.length&&retryCursor){retryCursor=0;rows=nextRefreshes.all(0);}
+   for(const row of rows){
+    retryCursor=row.position;
+    if(active.has(row.user_id+':'+row.request_id))continue;
+    try{
+     const result=JSON.parse(row.result_json);
+     await refresh(result);
+     completeRefresh.run(JSON.stringify({...result,discord_refreshed:true}),row.user_id,row.request_id);
+    }catch{/* Leave the receipt pending and continue with the rest of the batch. */}
+   }
+  }finally{retrying=false;}
+ }
+ const retry=setInterval(()=>retryRefreshes().catch(error=>console.error('[addon] Refresh queue:',error.code||'RETRY_FAILED')),10000);
+ retry.unref();
+ return {perform,issuePairCode,snapshot,member,retryRefreshes,close:()=>clearInterval(retry)};
 };

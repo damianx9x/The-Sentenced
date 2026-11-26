@@ -1,13 +1,16 @@
 from pathlib import Path
 import ctypes, ctypes.util
+import re
 import struct
 from fontTools.ttLib import TTFont
 root=Path('TheSentenced')
 toc=(root/'TheSentenced.toc').read_text(encoding='utf-8')
-assert '## Interface: 16001' in toc and '## Version: 0.6.42-alpha' in toc
+version=re.search(r'^## Version: (\d+\.\d+\.\d+(?:-[a-z]+)?)$',toc,re.MULTILINE)
+assert '## Interface: 16001' in toc and version, 'missing or invalid compatibility metadata'
+assert (root.parent/'README.md').read_text(encoding='utf-8').splitlines()[0].endswith(' '+version.group(1)), 'README and TOC disagree on the addon version'
 entries=[line.strip() for line in toc.splitlines() if line.strip() and not line.startswith('#')]
 assert 'Profiles.lua' in entries and 'Localization.lua' in entries
-assert not {'Domain.lua', 'Transport.lua', 'Auction.lua'} & set(entries), 'DKP modules must not load'
+assert not {'Domain.lua', 'Transport.lua', 'Auction.lua', 'GuildWelcome.lua'} & set(entries), 'retired modules must not load'
 for entry in entries:
     path=root/entry
     assert path.is_file() and path.parent==root, f'missing or invalid TOC path: {entry}'

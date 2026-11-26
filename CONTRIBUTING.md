@@ -18,17 +18,17 @@ python3 build.py /tmp/TheSentenced-dev.zip
 
 Dane testowe trzymaj w fikcyjnych rekordach. Pliki `WTF`, produkcyjna konfiguracja, klucze i eksporty wniosków powinny pozostać lokalne.
 
-## Bot i integracja
+## Testy bota i mostu
 
-Kod bota znajduje się w `runtime`. Testy rekrutacji i synchronizacji można uruchomić z katalogu głównego repozytorium w Node.js 24 lub nowszym.
+Z katalogu repozytorium, z Node.js 24 i Pythonem 3:
 
 ```sh
-node --test tests/recruitment.test.cjs tests/recruitment-public.test.cjs tests/transfer-sync.test.cjs
+npm ci --prefix runtime --no-audit --no-fund
+NODE_PATH="$PWD/runtime/node_modules" node --test tests/*.test.cjs
+python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
-Synchronizator macOS pobiera cel SSH ze zmiennej `TS_ROSTER_SSH_TARGET`. Ścieżki gry i serwera wymagają dostosowania do własnej instalacji.
-
-Bot zawiera ustawienia i identyfikatory specyficzne dla serwera The Sentenced. Do własnego środowiska testowego użyj osobnego serwera Discord, własnej konfiguracji i bazy. Nie uruchamiaj skryptów wdrożeniowych ani bota na produkcji w ramach testu.
+Workflow **Verify The Sentenced** uruchamia te testy oraz kontrolę składni Lua 5.1, zasobów i ZIP-a. Próby nie potrzebują logowania do WoW ani Discorda.
 
 ## English
 

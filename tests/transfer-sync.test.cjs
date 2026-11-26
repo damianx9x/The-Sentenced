@@ -110,6 +110,42 @@ test('private staff worker accepts only the owner paired character and bounded d
  }finally{db.close()}
 });
 
+test('a late Discord post receipt is recovered without publishing again',async()=>{
+ const {DatabaseSync}=require('node:sqlite');
+ const {createStaffExchange}=require('../runtime/staff-local-bridge.cjs');
+ const db=new DatabaseSync(':memory:');
+ db.exec(`CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT);
+ CREATE TABLE addon_links(character TEXT PRIMARY KEY,user_id TEXT UNIQUE);
+ CREATE TABLE addon_requests(user_id TEXT,request_id TEXT,payload_hash TEXT,status TEXT,result_json TEXT);`);
+ db.prepare('INSERT INTO addon_links VALUES(?,?)').run(character,'u1');
+ const request=wire('staff.post','general:'+hex('Znana wiadomość'));
+ const messageId='123456789012345678';
+ db.prepare('INSERT INTO addon_requests VALUES(?,?,?,?,?)').run('u1',id,hash(parseRequest(request).cmd),'done',JSON.stringify({message_id:messageId}));
+ let readAllowed=true,permitFreshPost=false;
+ const service={member:async actor=>assert.equal(actor,'u1'),perform:async(_name,cmd)=>{
+  if(permitFreshPost&&cmd.operation==='staff.post')return {status:'uncertain',error:'Sprawdź wiadomość'};
+  assert.equal(cmd.operation,'staff.review.list','late post must never be dispatched');
+  return readAllowed?{status:'snapshot',staff:{page:1,hasMore:false,applications:[]}}:{status:'rejected'};
+ }};
+ const exchange=createStaffExchange({db,guild:{id:'g1',ownerId:'u1'},service,clock:()=>now});
+ const decision={wire:request,createdAt:Math.floor(now/1000)-901};
+ try{
+  const expected=['TSB1','P',id,Math.floor(now/1000),hex(character),messageId].join('|');
+  assert.equal((await exchange({decision})).acknowledgement,expected);
+  assert.equal((await exchange({decision})).acknowledgement,expected);
+  const altered={...decision,wire:wire('staff.post','general:'+hex('Inna wiadomość'))};
+  assert.equal((await exchange({decision:altered})).acknowledgement,undefined);
+  readAllowed=false;
+  assert.deepEqual(await exchange({decision}),{status:'denied'});
+  readAllowed=true;
+  db.prepare("UPDATE addon_requests SET status='uncertain'").run();
+  assert.equal((await exchange({decision})).acknowledgement,undefined);
+  permitFreshPost=true;
+  assert.equal((await exchange({decision:{...decision,createdAt:Math.floor(now/1000)}})).acknowledgement,undefined,
+   'an ambiguous fresh result must keep the original outbox request');
+ }finally{db.close();}
+});
+
 test('staff sends Polish text using live authorization, stable channel ID and a single receipt',async()=>{
  const {DatabaseSync}=require('node:sqlite');
  const {CHANNEL_IDS}=require('../runtime/guild-channel-ids.cjs');

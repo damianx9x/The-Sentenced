@@ -132,19 +132,27 @@ def sync_welcomes(confirmed=None, sender=None, now=None):
 
 STAFF_OUTBOX = re.compile(rb'\["staffReviewOutboxV1"\]\s*=\s*"TSA1\|([0-9]{10})\|(TSB1\|Q\|[a-f0-9]{16}\|[a-f0-9]{6,260}\|(?:staff\.review\.decide\|[A-Za-z0-9:]{5,100}|staff\.post\|[a-z]{3,16}:[a-f0-9]{2,760}))"')
 STAFF_WIRE = re.compile(r'TSB1\|[KEP]\|[0-9a-f]{16}\|[A-Za-z0-9:|.-]+\Z')
+STAFF_RECOVERY_SECONDS = 30 * 86400
+STAFF_SAVE_MAX_BYTES = 8 * 1024 * 1024
 
 def pending_staff_decisions(root=ROOT, now=None):
     current=int(time.time() if now is None else now)
     decisions=[]
     for path in root.glob('*/*/*/SavedVariables/TheSentenced.lua'):
-        if path.stat().st_size>8*1024*1024:
+        try:
+            with path.open('rb') as stream:
+                data=stream.read(STAFF_SAVE_MAX_BYTES+1)
+        except OSError:
             continue
-        for stamp,wire in STAFF_OUTBOX.findall(path.read_bytes()):
-            created=int(stamp)
-            operation=wire.decode('ascii').split('|')[4]
-            earliest=current-(30*86400 if operation=='staff.review.decide' else 900)
-            if earliest<=created<=current+60:
-                decisions.append({'createdAt':created,'wire':wire.decode('ascii')})
+        if len(data)>STAFF_SAVE_MAX_BYTES:
+            continue
+        matches=STAFF_OUTBOX.findall(data)
+        if len(matches)!=1:
+            continue
+        stamp,wire=matches[0]
+        created=int(stamp)
+        if current-STAFF_RECOVERY_SECONDS<=created<=current+60:
+            decisions.append({'createdAt':created,'wire':wire.decode('ascii')})
     return sorted(decisions,key=lambda decision:decision['createdAt'],reverse=True)
 
 def sync_staff(decisions=(), transport=None):
@@ -161,21 +169,34 @@ def sync_staff(decisions=(), transport=None):
     value=transport({})
     if not isinstance(value,dict) or value.get('status')!='ready':
         return None
-    queue=value.get('queue')
     character=value.get('character')
     if not isinstance(character,str) or not character or len(character)>120:
         raise ValueError('INVALID_STAFF_CHARACTER')
-    signature='|'+character.encode('utf8').hex()+'|'
-    selected=next((x for x in decisions if signature in x['wire']),None)
+    encoded_character=character.encode('utf8').hex()
+
+    def checked_wire(wire, kinds):
+        if not isinstance(wire,str) or len(wire)>16384 or not STAFF_WIRE.fullmatch(wire):
+            raise ValueError('INVALID_STAFF_REPLY')
+        parts=wire.split('|')
+        if parts[1] not in kinds or (parts[1]!='E' and (len(parts)<6 or parts[4]!=encoded_character)):
+            raise ValueError('INVALID_STAFF_REPLY')
+        return parts
+
+    checked_wire(value.get('queue'),{'K'})
+    selected=next((item for item in decisions if item['wire'].split('|')[3]==encoded_character),None)
     if selected:
         value=transport({'decision':selected})
-        queue=value.get('queue')
+        if not isinstance(value,dict) or value.get('status')!='ready':
+            return None
+        if value.get('character')!=character:
+            raise ValueError('STAFF_PAIR_CHANGED')
+        checked_wire(value.get('queue'),{'K'})
     ack=value.get('acknowledgement')
-    def wire(value):
-        if not isinstance(value,str) or len(value)>16384 or not STAFF_WIRE.fullmatch(value):
-            raise ValueError('INVALID_STAFF_REPLY')
-        return value
-    return {'queue':wire(queue),'ack':wire(ack) if ack else ''}
+    if ack:
+        parts=checked_wire(ack,{'E','K','P'})
+        if not selected or parts[2]!=selected['wire'].split('|')[2]:
+            raise ValueError('STAFF_RECEIPT_MISMATCH')
+    return {'queue':value['queue'],'ack':ack or ''}
 
 def lua_string(value):
     # Decimal byte escapes prevent Lua source injection and preserve UTF-8.
@@ -216,13 +237,10 @@ def sync_events(fetcher=None, dest=EVENT_DEST, now=None, welcomes=None, staff=No
 
 def main():
     try:
-        welcomes=sync_welcomes(welcome_confirmations())
-    except (RuntimeError,OSError,subprocess.SubprocessError,ValueError,UnicodeError):welcomes=None
-    try:
         staff=sync_staff(pending_staff_decisions())
     except (RuntimeError,OSError,subprocess.SubprocessError,ValueError,UnicodeError):
         staff=None
-    try:save_state(sync_events(welcomes=welcomes,staff=staff),EVENT_STATE)
+    try:save_state(sync_events(staff=staff),EVENT_STATE)
     except (RuntimeError,OSError,subprocess.SubprocessError,ValueError,UnicodeError):save_state({'status':'RETRY','checked_at':int(time.time())},EVENT_STATE)
     snapshot=choose_snapshot()
     if not snapshot:

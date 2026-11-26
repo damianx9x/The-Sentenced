@@ -1,15 +1,22 @@
 unpack=table.unpack or unpack
 tinsert=table.insert
 local all={}
+local fireTextChanges=false
 local mt={}
 mt.__index=function(o,k)
  if k=='CreateTexture' or k=='CreateFontString' or k=='CreateAnimationGroup' or k=='CreateAnimation' then return function(self) local f=setmetatable({shown=true,parent=self},mt); all[#all+1]=f; return f end end
  if k=='SetParent' then return function(self,p) self.parent=p end end
  if k=='SetPoint' then return function(self,...) self.point={...} end end
+ if k=='SetVerticalScroll' then return function(self,offset) self.scrollOffset=offset end end
+ if k=='GetVerticalScroll' then return function(self) return self.scrollOffset or 0 end end
+ if k=='GetVerticalScrollRange' then return function() return 300 end end
  if k=='SetScript' then return function(self,n,f) self.scripts[n]=f end end
  if k=='GetScript' then return function(self,n) return self.scripts[n] end end
  if k=='GetText' then return function(self) return self.text or '' end end
- if k=='SetText' then return function(self,x) self.text=x end end
+ if k=='SetText' then return function(self,x)
+  self.text=x
+  if fireTextChanges and self.frameType=='EditBox' and self.scripts.OnTextChanged then self.scripts.OnTextChanged(self) end
+ end end
  if k=='Insert' then return function(self,x) self.text=(self.text or '')..x end end
  if k=='SetFrameStrata' then return function(self,x) self.strata=x end end
  if k=='SetFrameLevel' then return function(self,x) self.level=x end end
@@ -99,7 +106,7 @@ local function navigationButton(name)
  for _,f in ipairs(all) do if rawget(f,'label') and f.label.text==name then return f end end
  error('missing navigation button '..name)
 end
-for _,name in ipairs({'START','GILDIA I OGŁOSZENIA','WYPRAWY I ZAPISY','PRZEDMIOTY I ŁUPY','MAPA I ODKRYCIA','USTAWIENIA'}) do
+for _,name in ipairs({'START','GILDIA I OGŁOSZENIA','WYPRAWY I ZAPISY','PRZEDMIOTY I ŁUPY','MAPA I ODKRYCIA','DISCORD','USTAWIENIA'}) do
  assert(navigationButton(name).shown,'category must be visible on start: '..name)
 end
 for _,name in ipairs({'GILDIA','RZEMIOSŁO','ZASOBY','TABLICA','PROFIL','SIEĆ','HISTORIA','WYDARZENIA','RAIDY','PRZYGOTOWANIE','ŁUPY','MAPA','POSTAĆ','POMOC'}) do
@@ -184,9 +191,45 @@ assert(#TheSentencedDB.events==0)
 tab('WYDARZENIA')
 local bridgeTime=GetServerTime
 GetServerTime=function() return 1800000000 end
+date=os.date
 ns.CompanionSnapshot={schema=1,generatedAt=1800000000,raids={{id=1,title='Test Discord',when=1800003600,capacity=10}},expeditions={}}
 tab('START');local bridgeHome=false;for _,f in ipairs(all) do if f.shown and rawget(f,'text')=='NAJBLIŻSZE Z DISCORDA' then bridgeHome=true end end
 assert(bridgeHome,'upcoming Discord event should appear on the dashboard')
+local function textVisible(value)
+ for _,f in ipairs(all) do if f.shown and rawget(f,'text')==value then return true end end
+ return false
+end
+activeButton('Sprawdź Discord').scripts.OnClick()
+assert(textVisible('Lokalny odczyt gotowy') and textVisible('Test Discord'),'home action opens the local Discord event list')
+assert(not textVisible('Parowanie i zapisy'),'manual controls stay closed on first visit')
+local discordScroll
+for _,f in ipairs(all) do if f.name=='TheSentencedScroll' then discordScroll=f end end
+assert(discordScroll and discordScroll:GetVerticalScroll()==0,'a new destination starts at the top')
+discordScroll:SetVerticalScroll(75)
+GetServerTime=function() return 1800001250 end
+tab('DISCORD')
+assert(textVisible('Lokalny odczyt wymaga odświeżenia') and textVisible('Test Discord'),'last view remains visible with a stale warning')
+assert(discordScroll:GetVerticalScroll()==75,'refreshing the current page preserves reading position')
+TheSentencedDB.autoDiscord=false
+tab('DISCORD')
+assert(textVisible('Lokalny odczyt wyłączony') and not textVisible('Test Discord'),'paused projection hides imported events')
+activeButton('WŁĄCZ LOKALNY ODCZYT').scripts.OnClick()
+assert(TheSentencedDB.autoDiscord and textVisible('Test Discord'),'user can resume local sync here')
+activeButton('PAROWANIE I ZAPISY NA RAJD').scripts.OnClick()
+local function pairBox()
+ for _,f in ipairs(all) do
+  if f.shown and f.frameType=='EditBox' and rawget(f,'hint') and f.hint.text=='Jednorazowy kod parowania (18 znaków)' then return f end
+ end
+ error('missing pairing field')
+end
+fireTextChanges=true
+pairBox():SetText('1234567890ABCDEF12')
+tab('GILDIA'); tab('DISCORD')
+assert(discordScroll:GetVerticalScroll()==0,'changing destinations resets scroll')
+assert(pairBox():GetText()=='1234567890ABCDEF12','a recycled search field must not overwrite the pairing draft')
+fireTextChanges=false
+activeButton('UKRYJ PAROWANIE I ZAPISY').scripts.OnClick()
+GetServerTime=function() return 1800000000 end
 tab('WYDARZENIA');local bridgeVisible=false;for _,f in ipairs(all) do if f.shown and rawget(f,'text')=='RAID  •  Test Discord' then bridgeVisible=true end end
 assert(bridgeVisible,'Discord event projection should appear in the planner');ns.CompanionSnapshot={schema=1,generatedAt=0,raids={},expeditions={}};GetServerTime=bridgeTime;tab('WYDARZENIA')
 activeButton('OTWÓRZ KALENDARZ GRY').scripts.OnClick();assert(calendarOpened==1,'native calendar should open on request')
