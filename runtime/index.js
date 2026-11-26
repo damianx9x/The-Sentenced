@@ -57,6 +57,7 @@ const {createGuildHistory}=require('./guild-history');
 let guildHistory;
 const {statusEmbeds, statusComponents, createIntroductions, GAME, SITE} = require('./guild-refresh.cjs');
 const {CHANNEL_IDS, channelId} = require('./guild-channel-ids.cjs');
+const {signupPayload} = require('./raid-signup-view.cjs');
 let guildIdentity, guildNotifications, introductions;
 const GUILD_ID = process.env.GUILD_ID;
 
@@ -1158,18 +1159,7 @@ async function refreshRaidSignupMessage(
                 raid.signup_message_id
             );
 
-        await message.edit({
-            embeds: [
-                buildRaidSignupEmbed(
-                    raidId
-                ),
-            ],
-
-            components:
-                raidSignupButtons(
-                    raidId
-                ),
-        });
+        await message.edit(signupPayload(raid, buildRaidSignupEmbed(raidId), raidSignupButtons));
 
     } catch (error) {
         if(strict)throw error;
@@ -1387,73 +1377,7 @@ async function refreshRaidSignupStatusMessage(
                 raid.signup_message_id
             );
 
-        const embed =
-            buildRaidSignupEmbed(
-                raidId
-            );
-
-        let components =
-            raidSignupButtons(
-                raidId
-            );
-
-        if (
-            raid.status ===
-            'CLOSED'
-        ) {
-            embed.setTitle(
-                `🔒 ZAPISY ZAMKNIĘTE — ${raid.name}`
-            );
-
-            embed.setDescription(
-                [
-                    `📅 <t:${raid.scheduled_ts}:F>`,
-                    `⏳ <t:${raid.scheduled_ts}:R>`,
-                    '',
-                    '**Zapisy zostały zamknięte.**',
-                ].join('\n')
-            );
-
-            components = [];
-        }
-
-        if (
-            raid.status ===
-            'CANCELLED'
-        ) {
-            embed.setTitle(
-                `❌ RAID ANULOWANY — ${raid.name}`
-            );
-
-            const lines = [
-                `📅 <t:${raid.scheduled_ts}:F>`,
-                '',
-                '**Raid został anulowany.**',
-            ];
-
-            if (
-                raid.cancel_reason
-            ) {
-                lines.push(
-                    '',
-                    `**Powód:** ${raid.cancel_reason}`
-                );
-            }
-
-            embed.setDescription(
-                lines.join('\n')
-            );
-
-            components = [];
-        }
-
-        await message.edit({
-            embeds: [
-                embed
-            ],
-
-            components,
-        });
+        await message.edit(signupPayload(raid, buildRaidSignupEmbed(raidId), raidSignupButtons));
 
     } catch (error) {
         console.error(
