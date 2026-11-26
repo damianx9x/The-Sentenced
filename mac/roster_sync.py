@@ -70,13 +70,13 @@ def sync(snapshot, sender=None, now=None):
     digest=hashlib.sha256(data).hexdigest()
     if sender is None:
         def sender(body):
-            cmd=['/usr/bin/ssh','-4','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes',os.environ['TS_ROSTER_SSH_TARGET'],'/opt/node-v24.21.0/bin/node','/opt/sentencedbot/roster/receive.cjs']
+            cmd=['/usr/bin/ssh','-4','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes','icex@kingslanguageacademy.local','/opt/node-v24.21.0/bin/node','/opt/sentencedbot/roster/receive.cjs']
             p=subprocess.run(cmd,input=body,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=35,check=False)
             if p.returncode!=0:raise RuntimeError('REMOTE_SYNC_FAILED')
             return json.loads(p.stdout.decode('utf8'))
     result=sender(data)
     if not result.get('ok'):raise RuntimeError('REMOTE_NOT_CONFIRMED')
-    return {'status':'OK','snapshot_timestamp':snapshot['timestamp'],'synced_at':int(time.time() if now is None else now),'hash':digest,'characters':result.get('characters',0),'profiles':result.get('profiles',0),'duplicate':bool(result.get('duplicate'))}
+    return {'status':'OK','snapshot_timestamp':snapshot['timestamp'],'synced_at':int(time.time() if now is None else now),'hash':digest,'snapshot_characters':len(snapshot['rows']),'characters':result.get('characters',0),'profiles':result.get('profiles',0),'duplicate':bool(result.get('duplicate'))}
 
 def validate_events(value, now=None):
     current=int(time.time() if now is None else now)
@@ -110,7 +110,7 @@ def welcome_confirmations(root=ROOT):
 def sync_welcomes(confirmed=None, sender=None, now=None):
     if sender is None:
         def sender(body):
-            cmd=['/usr/bin/ssh','-4','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes',os.environ['TS_ROSTER_SSH_TARGET'],'/opt/node-v24.21.0/bin/node','/opt/sentencedbot/roster/welcome-queue.cjs']
+            cmd=['/usr/bin/ssh','-4','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes','icex@kingslanguageacademy.local','/opt/node-v24.21.0/bin/node','/opt/sentencedbot/roster/welcome-queue.cjs']
             p=subprocess.run(cmd,input=json.dumps(body).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=25,check=False)
             if p.returncode!=0 or len(p.stdout)>16384: raise RuntimeError('WELCOME_FETCH_FAILED')
             return json.loads(p.stdout.decode('utf8'))
@@ -151,7 +151,7 @@ def sync_staff(decisions=(), transport=None):
     if transport is None:
         def transport(payload):
             cmd=['/usr/bin/ssh','-4','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes',
-                 os.environ['TS_ROSTER_SSH_TARGET'],'curl','-fsS','--max-time','12','--unix-socket',
+                 'icex@kingslanguageacademy.local','curl','-fsS','--max-time','12','--unix-socket',
                  '/opt/sentencedbot/data/staff-bridge/staff.sock','-H','Content-Type:application/json',
                  '--data-binary','@-','http://localhost/review']
             result=subprocess.run(cmd,input=json.dumps(payload).encode('ascii'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=18)
@@ -204,7 +204,7 @@ def write_events(value, dest=EVENT_DEST):
 def sync_events(fetcher=None, dest=EVENT_DEST, now=None, welcomes=None, staff=None):
     if fetcher is None:
         def fetcher():
-            cmd=['/usr/bin/ssh','-4','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes',os.environ['TS_ROSTER_SSH_TARGET'],'/opt/node-v24.21.0/bin/node','/opt/sentencedbot/roster/export-events.cjs']
+            cmd=['/usr/bin/ssh','-4','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes','icex@kingslanguageacademy.local','/opt/node-v24.21.0/bin/node','/opt/sentencedbot/roster/export-events.cjs']
             p=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=25,check=False)
             if p.returncode!=0 or len(p.stdout)>65536: raise RuntimeError('EVENT_FETCH_FAILED')
             return json.loads(p.stdout.decode('utf8'))
