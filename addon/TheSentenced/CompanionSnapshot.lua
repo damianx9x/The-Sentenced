@@ -1,0 +1,3 @@
+-- The Sentenced owner event projection v1
+local _,NS=...
+NS.CompanionSnapshot={schema=1,generatedAt=0,raids={},expeditions={}}

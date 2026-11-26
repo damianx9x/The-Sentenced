@@ -1,0 +1,42 @@
+## Interface: 16001
+## Title: |cffffba5cTHE SENTENCED|r |cff8d99aaGuild Hall|r
+## Notes: Centrum gildii The Sentenced dla WoW Forever.
+## Author: The Sentenced
+## Version: 0.6.38-alpha
+## SavedVariables: TheSentencedGuildDB
+## SavedVariablesPerCharacter: TheSentencedDB
+Theme.lua
+Wire.lua
+Diagnostics.lua
+Localization.lua
+Raids.lua
+TestCleanup.lua
+Archive.lua
+Profiles.lua
+QuestItems.lua
+LootJournal.lua
+BoardItems.lua
+EventRetry.lua
+EventSync.lua
+EventNotifications.lua
+InstancePicker.lua
+MemberPicker.lua
+EventPicker.lua
+RosterSearch.lua
+NativeProfessions.lua
+CraftDirectory.lua
+ResourceDirectory.lua
+Ready.lua
+GameCalendar.lua
+CompanionSnapshot.lua
+GuildAccess.lua
+GuildLinks.lua
+TransferSync.lua
+GuildWelcome.lua
+Core.lua
+Gather.lua
+MapPins.lua
+
+RosterCapture.lua
+Snake.lua
+SnakeUI.lua
