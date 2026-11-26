@@ -7,6 +7,7 @@ mt.__index=function(o,k)
  if k=='SetParent' then return function(self,p) self.parent=p end end
  if k=='SetPoint' then return function(self,...) self.point={...} end end
  if k=='SetScript' then return function(self,n,f) self.scripts[n]=f end end
+ if k=='GetScript' then return function(self,n) return self.scripts[n] end end
  if k=='GetText' then return function(self) return self.text or '' end end
  if k=='SetText' then return function(self,x) self.text=x end end
  if k=='Insert' then return function(self,x) self.text=(self.text or '')..x end end
@@ -610,6 +611,34 @@ assert(#TheSentencedDB.autoNodes==1 and #ns.getMapPins()>=1,'local gather must a
 tab('MAPA'); local mapLabel=editByHint('Podpis miejsca (opcjonalny)'); mapLabel:SetText('Żelazo')
 activeButton('○  SKARB').scripts.OnClick(); assert(activeButton('✓  SKARB') and mapLabel:GetText()=='Żelazo','map type selection must preserve form')
 local beforePins=#ns.getMapPins(); local pin=ns.getMapPins()[1]; assert(ns.hideMapPin(pin) and #ns.getMapPins()<beforePins,'hide pin locally'); assert(ns.restoreHiddenMapPins() and #ns.getMapPins()==beforePins,'restore hidden pins')
+local savedGuildInfo=GetGuildInfo
+local savedRealm=GetNormalizedRealmName
+local savedTime=GetServerTime
+assert(not navigationButton('KADRA').shown,'staff page is hidden from ordinary members')
+GetGuildInfo=function() return 'The Sentenced','Officer',1 end
+GetNormalizedRealmName=function() return 'Realm' end
+GetServerTime=function() return 1795000000 end
+tab('START')
+tab('KADRA')
+activeButton('NAPISZ NA DISCORDZIE').scripts.OnClick()
+activeButton('#ogólny  ▸').scripts.OnClick()
+assert(activeButton('#kalendarz  ▸'),'staff can choose another allowed channel')
+activeButton('SPRAWDŹ PRZED WYSŁANIEM').scripts.OnClick()
+assert(ns.TransferSync.code(true)=='','invalid draft must not generate a request')
+local staffInput=editByHint('Wpisz wiadomość')
+staffInput:SetText('Próba ąćę')
+staffInput.scripts.OnTextChanged(staffInput)
+activeButton('SPRAWDŹ PRZED WYSŁANIEM').scripts.OnClick()
+assert(ns.TransferSync.code(true)=='','preview must not send or generate a request')
+activeButton('PRZEKAŻ BOTOWI').scripts.OnClick()
+assert(ns.TransferSync.code(true):find('|staff.post|calendar:',1,true),'confirmed request targets the selected channel')
+GetGuildInfo=savedGuildInfo
+GetNormalizedRealmName=savedRealm
+GetServerTime=savedTime
+tab('START')
+assert(not navigationButton('KADRA').shown,'staff menu hides again after the role is removed')
+print('STAFF_COMPOSE_UI_OK: role gate, destination, validation, preview and explicit confirmation')
+
 print('FOREVER_NAME_OK: first and surname, unknown suffix rejected')
 TheSentencedDB.setupDone=false; TheSentencedDB.setupStep=1
 all[1].scripts.OnEvent(all[1],'PLAYER_ENTERING_WORLD')
