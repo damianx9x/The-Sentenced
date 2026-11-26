@@ -20,18 +20,35 @@ function createStaffExchange({db,guild,service,clock=Date.now}){
   const requestIdForList=requestId();
   const encodedName=Buffer.from(character,'utf8').toString('hex');
   const listWire=['TSB1','Q',requestIdForList,encodedName,staffList,'1'].join('|');
-  let acknowledgement;
+  let acknowledgement,staleRequest;
   if(input.decision!==undefined){
    const decision=input.decision;
    if(!decision||!Number.isSafeInteger(decision.createdAt)||
-      decision.createdAt<Math.floor(clock()/1000)-900||decision.createdAt>Math.floor(clock()/1000)+60)
+      decision.createdAt<Math.floor(clock()/1000)-30*86400||decision.createdAt>Math.floor(clock()/1000)+60)
     throw Error('STAFF_REQUEST_EXPIRED');
    const request=parseRequest(decision.wire);
    if(request.character!==character||!staffWrites.has(request.cmd.operation))throw Error('STAFF_REQUEST_INVALID');
-   acknowledgement=await runTransfer({service,db,userId:guild.ownerId,wire:decision.wire,now:clock()});
+   if(decision.createdAt<Math.floor(clock()/1000)-900){
+    if(request.cmd.operation!=='staff.review.decide')throw Error('STAFF_REQUEST_EXPIRED');
+    staleRequest=request;
+   }else{
+    acknowledgement=await runTransfer({service,db,userId:guild.ownerId,wire:decision.wire,now:clock()});
+   }
   }
   const queue=await runTransfer({service,db,userId:guild.ownerId,wire:listWire,now:clock()});
   if(!queue.startsWith('TSB1|K|'))return {status:'denied',acknowledgement};
+  if(staleRequest){
+   // A stale decision is reconciled read-only. Never execute it again.
+   const {user_id,revision,action}=staleRequest.cmd.payload;
+   const row=db.prepare('SELECT state,submitted_revision,decision_actor FROM ts_onboarding_gate WHERE guild_id=? AND user_id=?').get(guild.id,user_id);
+   const expected=action==='approve'?'APPROVED':'REJECTED';
+   if(row?.state===expected&&row.submitted_revision===revision&&row.decision_actor===guild.ownerId){
+    const fields=queue.split('|');
+    fields[2]=staleRequest.cmd.id;
+    fields[7]=expected;
+    acknowledgement=fields.join('|');
+   }
+  }
   return {status:'ready',queue,acknowledgement,character};
  };
 }

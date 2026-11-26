@@ -81,3 +81,17 @@ TheSentencedDB.staffReviewOutboxV1='broken'
 assert(T.staffOutboxStatus()=='invalid')
 assert(not T.queueLocalPost(staffPost))
 assert(T.discardStaffOutbox())
+
+-- A delayed confirmation may clear an expired operation only after a verified decision.
+GetServerTime=function() return 1795000000 end
+assert(T.queueLocalDecision('1:approve:123456789012345678:3'))
+local expiredId=T.waitingForStaffBridge()
+GetServerTime=function() return 1795000901 end
+local current='TSB1|K|1111111111111111|1795000901|'..hex('Icex Jenkins-Realm')..'|1|0|-'
+ns.CompanionSnapshot.staff.queue=current
+ns.CompanionSnapshot.staff.ack='TSB1|E|'..expiredId..'|'..hex('unknown')
+assert(T.localStaff())
+assert(T.staffOutboxStatus()=='expired', 'unconfirmed expired request must stay')
+ns.CompanionSnapshot.staff.ack='TSB1|K|'..expiredId..'|1795000901|'..hex('Icex Jenkins-Realm')..'|1|0|APPROVED'
+local _,recoveredMessage=T.localStaff()
+assert(recoveredMessage:find('potwierdził przyjęcie') and not T.staffOutboxStatus())

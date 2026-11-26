@@ -141,7 +141,9 @@ def pending_staff_decisions(root=ROOT, now=None):
             continue
         for stamp,wire in STAFF_OUTBOX.findall(path.read_bytes()):
             created=int(stamp)
-            if current-900<=created<=current+60:
+            operation=wire.decode('ascii').split('|')[4]
+            earliest=current-(30*86400 if operation=='staff.review.decide' else 900)
+            if earliest<=created<=current+60:
                 decisions.append({'createdAt':created,'wire':wire.decode('ascii')})
     return sorted(decisions,key=lambda decision:decision['createdAt'],reverse=True)
 

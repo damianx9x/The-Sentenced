@@ -80,7 +80,7 @@ test('private staff worker accepts only the owner paired character and bounded d
  const {DatabaseSync}=require('node:sqlite');
  const {createStaffExchange}=require('../runtime/staff-local-bridge.cjs');
  const db=new DatabaseSync(':memory:');
- db.exec('CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT);CREATE TABLE addon_links(character TEXT PRIMARY KEY,user_id TEXT UNIQUE)');
+ db.exec('CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT);CREATE TABLE addon_links(character TEXT PRIMARY KEY,user_id TEXT UNIQUE);CREATE TABLE ts_onboarding_gate(guild_id TEXT,user_id TEXT,state TEXT,submitted_revision INTEGER,decision_actor TEXT)');
  db.prepare('INSERT INTO addon_links VALUES(?,?)').run(character,'u1');
  const calls=[];
  const staff={page:1,hasMore:false,applications:[]};
@@ -88,16 +88,25 @@ test('private staff worker accepts only the owner paired character and bounded d
   assert.equal(name,character);assert.equal(actor,'u1');calls.push(cmd.operation);
   return cmd.operation==='staff.review.decide'?{status:'accepted',decision:{state:'APPROVED'},staff}:{status:'snapshot',staff};
  }};
- const exchange=createStaffExchange({db,guild:{ownerId:'u1'},service,clock:()=>now});
+ const exchange=createStaffExchange({db,guild:{id:'g1',ownerId:'u1'},service,clock:()=>now});
  try{
   const fresh=await exchange({});
   assert.equal(fresh.status,'ready');assert.match(fresh.queue,/^TSB1\|K\|/);
   const decision={wire:wire('staff.review.decide','1:approve:123456789012345678:3'),createdAt:Math.floor(now/1000)};
-  await assert.rejects(exchange({decision:{...decision,createdAt:decision.createdAt-901}}),/EXPIRED/);
+  const expired={...decision,createdAt:decision.createdAt-901};
+  assert.equal((await exchange({decision:expired})).acknowledgement,undefined);
+  db.prepare('INSERT INTO ts_onboarding_gate VALUES(?,?,?,?,?)').run('g1','123456789012345678','APPROVED',3,'u1');
+  const recovered=await exchange({decision:expired});
+  assert.match(recovered.acknowledgement,/^TSB1\|K\|0123456789abcdef\|/);
+  assert.match(recovered.acknowledgement,/\|APPROVED$/);
+  assert.equal(calls.filter(name=>name==='staff.review.decide').length,0,'expired requests must never be executed');
+  db.prepare('UPDATE ts_onboarding_gate SET decision_actor=?').run('other');
+  assert.equal((await exchange({decision:expired})).acknowledgement,undefined);
+  calls.length=0;
   await assert.rejects(exchange({decision:{...decision,wire:decision.wire.replace(hex(character),hex('Other-Realm'))}}),/INVALID/);
   const result=await exchange({decision});
   assert.match(result.acknowledgement,/\|APPROVED$/);
-  assert.deepEqual(calls,['staff.review.list','staff.review.decide','staff.review.list']);
+  assert.deepEqual(calls,['staff.review.decide','staff.review.list']);
  }finally{db.close()}
 });
 

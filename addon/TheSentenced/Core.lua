@@ -221,7 +221,7 @@ local function start()
   local title=font(hero,'Centrum gildii',24,gold); title:SetPoint('TOPLEFT',20,-13);if NS.Theme then NS.Theme.font(title,24,'title') end
   local desc=font(hero,guild and plain(guild) or 'Dołącz do gildii',13,muted)
   desc:SetPoint('TOPLEFT',21,-49);desc:SetWidth(490)
-  local alpha=font(hero,'ALFA  0.6.39',10,gold); alpha:SetPoint('TOPRIGHT',-102,-18)
+  local alpha=font(hero,'ALFA  0.6.40',10,gold); alpha:SetPoint('TOPRIGHT',-102,-18)
   ui.y=ui.y-86
   local shortcuts={{'RAJDY I WYPRAWY','WYDARZENIA'},{'LUDZIE I PROFESJE','RZEMIOSŁO'},{'POŁĄCZENIE DISCORD','DISCORD'}}
   for i,v in ipairs(shortcuts) do
@@ -494,7 +494,7 @@ local function staffPage()
   elseif not ui.staffPostMode then
     addAction('POBIERZ WNIOSKI',function() request('staff.review.list',tostring(reviewPage)) end,205)
   end
-  if awaiting then text('Operacja oczekuje na potwierdzenie bota po zapisaniu danych gry.',12,gold,9) end
+  if awaiting then text('Synchronizator przetwarza operację. Odczekaj około 20 sekund i wybierz przycisk odświeżenia.',12,gold,9) end
   if staffStatus or automaticStatus then text(staffStatus or automaticStatus,12,gold) end
   if automatic then
     addAction(ui.staffManual and 'UKRYJ KODY RĘCZNE' or 'POKAŻ KODY RĘCZNE',function() ui.staffManual=not ui.staffManual; render() end,240)
@@ -562,8 +562,9 @@ local function staffPage()
         addAction(automatic and 'PRZEKAŻ DECYZJĘ' or 'PRZYGOTUJ DECYZJĘ',function()
           local payload=table.concat({reviewPage,chosen,entry.id,entry.revision},':')
           if automatic and not ui.staffManual then
-            local _,message=bridge.queueLocalDecision(payload)
-            staffStatus=message;staffDecision=nil;render()
+            local queued,message=bridge.queueLocalDecision(payload)
+            staffStatus=message;staffDecision=nil
+            if queued then ReloadUI() else render() end
           else request('staff.review.decide',payload) end
         end,230)
         addAction('ANULUJ',function() staffDecision=nil; render() end,120)
@@ -2482,7 +2483,7 @@ local function archivePage()
 end
 local showSetup
 local function help()
-  section('INFORMACJE  /  POMOC','Jak to działa?','Wersja 0.6.39-alfa • WoW Forever • interfejs 16001')
+  section('INFORMACJE  /  POMOC','Jak to działa?','Wersja 0.6.40-alfa • WoW Forever • interfejs 16001')
   addAction('DIAGNOSTYKA — KOPIUJ RAPORT',function() if NS.Diagnostics then NS.Diagnostics.show() end end,300)
   addAction('JĘZYK: POLSKI',function()
     NS.Language.set(NS.Language.language()=='pl' and 'en' or 'pl'); render()

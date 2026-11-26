@@ -93,9 +93,10 @@ function T.localStaff()
  if type(value)~='table' then return end
  local snapshot=localWire(value.queue)
  if not snapshot or not snapshot.queue then return end
- local id=T.waitingForStaffBridge()
+ local status,id=T.staffOutboxStatus()
  local acknowledgement=localWire(value.ack)
- if id and acknowledgement and acknowledgement.id==id then
+ if id and acknowledgement and acknowledgement.id==id and
+    (status=='waiting' or acknowledgement.queue and acknowledgement.queue.decision~='-') then
   TheSentencedDB.staffReviewOutboxV1=nil
   local outcome=acknowledgement.queue and acknowledgement.queue.decision
   staffTransfer.localStatus=outcome=='APPROVED' and 'Bot potwierdził przyjęcie do gildii.'
