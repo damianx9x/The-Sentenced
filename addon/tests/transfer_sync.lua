@@ -67,3 +67,17 @@ assert(T.queueLocalPost(staffPost))
 ns.CompanionSnapshot.staff.ack=publication:gsub(postId,T.waitingForStaffBridge(),1)
 local _,message=T.localStaff()
 assert(message:find('opublikował') and not T.waitingForStaffBridge())
+
+-- Expiry or corruption cannot silently replace an unconfirmed staff operation.
+assert(T.queueLocalPost(staffPost))
+local original=TheSentencedDB.staffReviewOutboxV1
+GetServerTime=function() return 1795000901 end
+assert(T.staffOutboxStatus()=='expired')
+assert(not T.queueLocalPost(staffPost) and TheSentencedDB.staffReviewOutboxV1==original)
+assert(T.discardStaffOutbox())
+assert(T.queueLocalPost(staffPost))
+assert(not T.discardStaffOutbox(), 'a live request cannot be discarded as expired')
+TheSentencedDB.staffReviewOutboxV1='broken'
+assert(T.staffOutboxStatus()=='invalid')
+assert(not T.queueLocalPost(staffPost))
+assert(T.discardStaffOutbox())

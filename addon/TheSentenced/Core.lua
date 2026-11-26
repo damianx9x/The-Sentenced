@@ -221,7 +221,7 @@ local function start()
   local title=font(hero,'Centrum gildii',24,gold); title:SetPoint('TOPLEFT',20,-13);if NS.Theme then NS.Theme.font(title,24,'title') end
   local desc=font(hero,guild and plain(guild) or 'Dołącz do gildii',13,muted)
   desc:SetPoint('TOPLEFT',21,-49);desc:SetWidth(490)
-  local alpha=font(hero,'ALFA  0.6.38',10,gold); alpha:SetPoint('TOPRIGHT',-102,-18)
+  local alpha=font(hero,'ALFA  0.6.39',10,gold); alpha:SetPoint('TOPRIGHT',-102,-18)
   ui.y=ui.y-86
   local shortcuts={{'RAJDY I WYPRAWY','WYDARZENIA'},{'LUDZIE I PROFESJE','RZEMIOSŁO'},{'POŁĄCZENIE DISCORD','DISCORD'}}
   for i,v in ipairs(shortcuts) do
@@ -475,6 +475,19 @@ local function staffPage()
   end
   local reviewPage=data and data.page or 1
   local awaiting=bridge.waitingForStaffBridge()
+  local outboxStatus=bridge.staffOutboxStatus()
+  if outboxStatus=='expired' or outboxStatus=='invalid' then
+    text('Poprzednia operacja wygasła lub jest nieczytelna. Sprawdź jej wynik na Discordzie przed ponowieniem.',12,gold,8)
+    if ui.discardStaffRequest then
+      text('Usunąć stare żądanie z kolejki tego komputera?',12,gold,5)
+      addAction('USUŃ STARE ŻĄDANIE',function()
+        bridge.discardStaffOutbox();ui.discardStaffRequest=false;render()
+      end,230)
+      addAction('ANULUJ',function() ui.discardStaffRequest=false;render() end,120)
+    else
+      addAction('USUŃ STARE ŻĄDANIE...',function() ui.discardStaffRequest=true;render() end,240)
+    end
+  end
   if automatic then
     text('Połączono z lokalnym synchronizatorem. Kolejka odświeża się po przeładowaniu gry.',12,gold,9)
     addAction(awaiting and 'ZAPISZ I PRZEŁADUJ' or 'ODŚWIEŻ PO PRZEŁADOWANIU',function() ReloadUI() end,275)
@@ -2469,7 +2482,7 @@ local function archivePage()
 end
 local showSetup
 local function help()
-  section('INFORMACJE  /  POMOC','Jak to działa?','Wersja 0.6.38-alfa • WoW Forever • interfejs 16001')
+  section('INFORMACJE  /  POMOC','Jak to działa?','Wersja 0.6.39-alfa • WoW Forever • interfejs 16001')
   addAction('DIAGNOSTYKA — KOPIUJ RAPORT',function() if NS.Diagnostics then NS.Diagnostics.show() end end,300)
   addAction('JĘZYK: POLSKI',function()
     NS.Language.set(NS.Language.language()=='pl' and 'en' or 'pl'); render()

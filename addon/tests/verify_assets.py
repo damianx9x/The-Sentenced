@@ -4,7 +4,7 @@ import struct
 from fontTools.ttLib import TTFont
 root=Path('TheSentenced')
 toc=(root/'TheSentenced.toc').read_text(encoding='utf-8')
-assert '## Interface: 16001' in toc and '## Version: 0.6.38-alpha' in toc
+assert '## Interface: 16001' in toc and '## Version: 0.6.39-alpha' in toc
 entries=[line.strip() for line in toc.splitlines() if line.strip() and not line.startswith('#')]
 assert 'Profiles.lua' in entries and 'Localization.lua' in entries
 assert not {'Domain.lua', 'Transport.lua', 'Auction.lua'} & set(entries), 'DKP modules must not load'

@@ -105,17 +105,29 @@ function T.localStaff()
  end
  return snapshot.queue,staffTransfer.localStatus
 end
-function T.waitingForStaffBridge()
+function T.staffOutboxStatus()
  local outbox=TheSentencedDB and TheSentencedDB.staffReviewOutboxV1
  if type(outbox)~='string' then return end
  local stamp,id=outbox:match('^TSA1|(%d+)|TSB1|Q|(%x+)|')
- if stamp and #stamp==10 and #id==16 then
-  local age=clock()-tonumber(stamp)
-  if age>=-60 and age<=900 then return id end
- end
+ if not stamp or #stamp~=10 or #id~=16 then return 'invalid' end
+ local age=clock()-tonumber(stamp)
+ if age< -60 or age>900 then return 'expired',id end
+ return 'waiting',id
+end
+function T.waitingForStaffBridge()
+ local status,id=T.staffOutboxStatus()
+ if status=='waiting' then return id end
+end
+function T.discardStaffOutbox()
+ local status=T.staffOutboxStatus()
+ if status~='expired' and status~='invalid' then return false end
+ TheSentencedDB.staffReviewOutboxV1=nil
+ return true
 end
 local function queueStaffWrite(operation,payload)
- if T.waitingForStaffBridge() then return false,'Poprzednia operacja czeka na synchronizator.' end
+ local status=T.staffOutboxStatus()
+ if status=='waiting' then return false,'Poprzednia operacja czeka na synchronizator.' end
+ if status then return false,'Sprawdź wynik poprzedniej operacji na Discordzie i usuń jej stare żądanie.' end
  local code,errorMessage=T.request(operation,payload)
  if not code then return false,errorMessage end
  TheSentencedDB.staffReviewOutboxV1='TSA1|'..clock()..'|'..code

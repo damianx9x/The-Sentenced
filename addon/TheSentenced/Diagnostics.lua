@@ -3,8 +3,8 @@ local addonName,NS=...
 local D={}; NS.Diagnostics=D
 local unpackArgs=unpack or table.unpack
 local metadata=C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
-local version=metadata and metadata(addonName,'Version') or '0.6.38-alpha'
-local wireVersion=version:match('^%d+%.%d+%.%d+') or '0.6.38'
+local version=metadata and metadata(addonName,'Version') or '0.6.39-alpha'
+local wireVersion=version:match('^%d+%.%d+%.%d+') or '0.6.39'
 local ring,counts,peers,peerOrder={}, {}, {}, {}
 local keyCount=0
 local snapshot,selfName,window
