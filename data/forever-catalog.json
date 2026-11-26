@@ -1,0 +1,191 @@
+{
+  "product": "WoW Forever",
+  "verified_at": "2026-11-08",
+  "source": "https://worldofwarcraft.blizzard.com/en-us/news/24315643/return-to-azeroth-in-world-of-warcraft-forever",
+  "raids": [
+    {
+      "name": "Barrow Deeps",
+      "players": 10,
+      "status": "announced",
+      "unlock_date": "2026-12-09"
+    },
+    {
+      "name": "Hyjal Summit",
+      "players": 20,
+      "status": "announced",
+      "unlock_date": "2026-12-09"
+    },
+    {
+      "name": "Onyxia's Lair",
+      "players": 40,
+      "status": "announced",
+      "unlock_date": "2026-12-09"
+    }
+  ],
+  "dungeons": [
+    {
+      "name": "Hall of Thanes",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 13,
+      "max_level": 18,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "Ruins of Lordaeron",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 15,
+      "max_level": 20,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "Excavation Site",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 24,
+      "max_level": 29,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "City of Dalaran",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 28,
+      "max_level": 33,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "The Drowned City",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 35,
+      "max_level": 40,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "Krol’dok Stronghold",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 40,
+      "max_level": 45,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "Alcaz Prison",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 48,
+      "max_level": 53,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "Blackmaw Hold",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 55,
+      "max_level": 60,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "Shaper’s Terrace",
+      "status": "availability_unverified",
+      "players": 5,
+      "min_level": 58,
+      "max_level": 60,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24301455/"
+    },
+    {
+      "name": "Blackrock Depths",
+      "status": "availability_unverified",
+      "players": null,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24303009/world-of-warcraft-forever-raid-overview-locations-raid-sizes-and-attunement"
+    },
+    {
+      "name": "Upper Blackrock Spire",
+      "status": "availability_unverified",
+      "players": null,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24303009/world-of-warcraft-forever-raid-overview-locations-raid-sizes-and-attunement"
+    },
+    {
+      "name": "Lower Blackrock Spire",
+      "status": "availability_unverified",
+      "players": null,
+      "source": "https://worldofwarcraft.blizzard.com/en-us/news/24303009/world-of-warcraft-forever-raid-overview-locations-raid-sizes-and-attunement"
+    },
+    {
+      "name": "Ragefire Chasm",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Wailing Caverns",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "The Deadmines",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Shadowfang Keep",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "The Stockade",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Blackfathom Deeps",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Gnomeregan",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Razorfen Kraul",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Scarlet Monastery",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Razorfen Downs",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Uldaman",
+      "status": "beta_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696"
+    },
+    {
+      "name": "Maraudon",
+      "status": "hotfix_documented_availability_unverified",
+      "players": null,
+      "source": "https://us.forums.blizzard.com/en/wow/t/wow-forever-hotfixes-november-6-2026/2403040"
+    }
+  ],
+  "policy": "Incomplete list: names explicitly described by Blizzard for WoW Forever. Live accessibility requires in-client verification. Unknown values remain null. No Classic fallback.",
+  "raid_source": "https://worldofwarcraft.blizzard.com/en-us/news/24303009/world-of-warcraft-forever-raid-overview-locations-raid-sizes-and-attunement"
+}
