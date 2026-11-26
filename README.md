@@ -21,7 +21,7 @@ Gracze WoW Forever 1.60.1 mogą wypakować wydanie ZIP do `Interface/AddOns`. Po
 - **Łupy i mapa** obejmują prywatny dziennik zielonych i lepszych łupów, własną listę życzeń oraz znaczniki zasobów.
 - **Discord** obsługuje parowanie postaci z kontem, odczyt wybranych wydarzeń i zapisy na rajdy. W panelu **Kadra** GM i oficerowie mogą przeglądać wnioski, rozpatrywać je i przygotowywać wpisy do wybranych kanałów Discorda. Dostęp weryfikuje bot.
 
-Kod dodatku jest w [addon/TheSentenced](addon/TheSentenced), kod bota i integracji w [runtime](runtime), a testy w [addon/tests](addon/tests) oraz [tests](tests). Pliki Lua wymienione w `TheSentenced.toc` ładują się w kolejności z manifestu. W grze działa osobny moduł ustawień i diagnostyki.
+Kod dodatku jest w [addon/TheSentenced](addon/TheSentenced), kod bota i integracji w [runtime](runtime), synchronizator macOS w [mac](mac), a testy w [addon/tests](addon/tests) oraz [tests](tests). Pliki Lua wymienione w `TheSentenced.toc` ładują się w kolejności z manifestu. W grze działa osobny moduł ustawień i diagnostyki.
 
 [Zobacz formularz wyprawy](docs/screenshots/event-form.jpg)
 

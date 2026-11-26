@@ -26,6 +26,8 @@ Kod bota znajduje się w `runtime`. Testy rekrutacji i synchronizacji można uru
 node --test tests/recruitment.test.cjs tests/recruitment-public.test.cjs tests/transfer-sync.test.cjs
 ```
 
+Synchronizator macOS pobiera cel SSH ze zmiennej `TS_ROSTER_SSH_TARGET`. Ścieżki gry i serwera wymagają dostosowania do własnej instalacji.
+
 Bot zawiera ustawienia i identyfikatory specyficzne dla serwera The Sentenced. Do własnego środowiska testowego użyj osobnego serwera Discord, własnej konfiguracji i bazy. Nie uruchamiaj skryptów wdrożeniowych ani bota na produkcji w ramach testu.
 
 ## English
